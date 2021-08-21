@@ -7,11 +7,12 @@ struct Coordinate {
 
 impl Coordinate {
 
+
     fn new(x : f64, y: f64, z: f64 ) -> Coordinate{
         Coordinate {
-            x: 0.0, 
-            y: 0.0,
-            z: 0.0
+            x: x, 
+            y: y,
+            z: z,
         }
     }
 
@@ -25,16 +26,56 @@ impl Coordinate {
         
     }
 
+    fn sub(self, pt:Coordinate) -> Coordinate {
+
+        Coordinate {
+            x: self.x - pt.x ,
+            y: self.y - pt.y ,
+            z: self.z - pt.z 
+        }
+        
+    }
+
+    fn delta(self, pt:Coordinate) -> Coordinate {
+
+        pt.sub(self)
+    }
+
+    fn mag(self) -> f64 {
+
+        (self.x.powf(2.)  + self.y.powf(2.) + self.z.powf(2.)).sqrt()
+    }
+
+    fn distance(self, pt:Coordinate) -> f64 {
+
+        self.delta(pt).mag()
+        
+    }
+
+    fn first_quadrant(self) -> Coordinate {
+
+        Coordinate {
+            x: self.x.abs() ,
+            y: self.y.abs() ,
+            z: self.z.abs() 
+        }
+        
+    }
+
 }
 
 
 fn main() {
-    let mut c = Coordinate::new(None,None);
-    let a = Coordinate { x:245, y:216 };
-    let b = Coordinate { x:6, y:7 };
-    c.x = 4;
-    c.y = 33;
+    let x1 = Coordinate::new(0. , 0.,-1.);
+    let mut x2 = Coordinate::new(1. , 0.,-0.);
+    let mut x3 = Coordinate::new(0. , 1.,-0.);
+    let mut x4 = Coordinate::new(0. , 0., -1.);
+
+    c.x = 4.;
+    c.y = 33.;
     let d = a.add(b).add(c);
-    println!("{} {}",d.x,d.y)
+    println!("{:.3} {:.3} {:.3}",d.x,d.y,d.z);
+    let x:Coordinate = a.add(b);
+
 
 }
