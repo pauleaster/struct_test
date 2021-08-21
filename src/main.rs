@@ -1,30 +1,28 @@
 struct Coordinate {
 
-    x: u8,
-    y: u8,
+    x: f64,
+    y: f64,
+    z: f64,
 }
 
 impl Coordinate {
 
-    fn new(x : Option<u8>, y: Option<u8> ) -> Coordinate{
+    fn new(x : f64, y: f64, z: f64 ) -> Coordinate{
         Coordinate {
-            x:x.unwrap_or(0), 
-            y:y.unwrap_or(0)
+            x: 0.0, 
+            y: 0.0,
+            z: 0.0
         }
     }
 
     fn add(self, pt:Coordinate) -> Coordinate {
 
         Coordinate {
-            x: match self.x.checked_add(pt.x) {
-                None => panic!("Overflow in x, {} + {} > 255",self.x,pt.x),
-                Some(result) => result,
-            },
-            y: match self.y.checked_add(pt.y) {
-                None => panic!("Overflow in y, {} + {} > 255",self.y,pt.y),
-                Some(result) => result,
-            }
+            x: self.x + pt.x ,
+            y: self.y + pt.y ,
+            z: self.z + pt.z 
         }
+        
     }
 
 }
