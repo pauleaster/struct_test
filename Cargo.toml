@@ -1,5 +1,5 @@
 [package]
-name = "struct_test"
+name = "vertex_finder"
 version = "0.1.0"
 edition = "2018"
 
@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 itertools = "0.10"
+text_io = "0.1.9"
