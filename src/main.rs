@@ -1,5 +1,8 @@
 use itertools::izip;
 
+const MAX_NUM : f64 = 1e6;
+const MIN_NUM : f64 = 0.0;
+
 struct Coordinate {
 
     x: f64,
@@ -145,9 +148,26 @@ impl Coordinate {
 
     }
 
-    fn print(&self) {
+    fn print(&self, ch:char) {
     
-        println!("( {:.3} , {:.3} , {:.3} ), |x| = {:.3}",self.x,self.y,self.z, self.mag)
+        print!("( {:.3} , {:.3} , {:.3} ), |x| = {:.3}{}",self.x,self.y,self.z, self.mag,ch)
+    }
+
+    fn sub_float(&self, value:f64) -> Coordinate {
+
+        let x = self.x - value ;
+        let y = self.y - value ;
+        let z = self.z - value ;
+        
+        
+        Coordinate {
+            x,
+            y,
+            z, 
+            mag: Coordinate::calc_mag(x,y,z),
+        }
+
+
     }
 
 
@@ -161,6 +181,9 @@ struct CoordinateVector {
     data:  Vec<Coordinate>,
     first_index : Option <Vec <usize>>,
     second_index : Option <Vec <usize>>,
+    mean_magnitude : Option <f64>,
+    first_index_max : Option <usize>,
+    second_index_max : Option <usize>,
 }
 
 impl CoordinateVector {
@@ -188,8 +211,20 @@ impl CoordinateVector {
             data : data, // note this should move data
             first_index : None,
             second_index : None,
+            mean_magnitude : None,
+            first_index_max : None,
+            second_index_max : None,
         }
     }
+
+    // size: data.len(),
+    // data : data,
+    // first_index : Some(first_idx),
+    // second_index : Some(second_idx),
+    // mean_magnitude : Some(mean_magnitude),
+    // first_index_max : Some(first_index_max),
+    // second_index_max : Some(second_index_max),
+
 
     fn print(&self) {
 
@@ -197,9 +232,24 @@ impl CoordinateVector {
             Some(vec_idx1) => match &self.second_index{
                 Some(vec_idx2) => {
                     println!("Length = {}",self.size);
+                    match &self.mean_magnitude {
+                        Some(x) => println!("E(|x|)={:0.3}",x),
+                        None => ()
+                    }
+                    match &self.first_index_max {
+                        Some(x) => match &self.second_index_max {
+                            Some(y) => println!("Max index = ({},{})",x,y),
+                            None => ()
+                        },
+                        None => ()
+                    }
                     for (idx1, idx2, coordinate) in izip!(vec_idx1, vec_idx2, &self.data) {
                         print!("({}, {}): ",idx1,idx2);
-                        coordinate.print();
+                        coordinate.print(',');
+                        match &self.mean_magnitude {
+                            Some(x) => println!(" |x| - E(|x|)={:0.3}",coordinate.mag - x),
+                            None => ()
+                        }
                     }
                 },
                 None =>  (), // only need to output the None case once
@@ -207,33 +257,71 @@ impl CoordinateVector {
             None => {
                 println!("Length = {}",self.size);
                 for coordinate in &self.data {
-                    coordinate.print();
+                    coordinate.print('\n');
                 }
             },
         }
     }
+
 
     fn construct_differences(&self) -> CoordinateVector {
         
         let mut data : Vec<Coordinate> = Vec::new();
         let mut first_idx : Vec <usize>  = Vec::new();
         let mut second_idx : Vec <usize> = Vec::new();
-        let mut magnitudes : Vec <f64> = Vec::new();
+        let mut mags : Vec <f64> = Vec::new();
+        let mut mag_sum = 0_f64;
         for (idx1, coordinate_1) in self.data[0..self.size-1].iter().enumerate() {
             for (idx2, coordinate_2) in self.data[idx1+1..self.size].iter().enumerate(){
                 first_idx.push(idx1);
                 second_idx.push(idx1+idx2+1);
                 let difference = coordinate_2.delta(coordinate_1);
+                mags.push(difference.mag);
+                mag_sum += difference.mag;
                 data.push(difference);
             }
         }
+        let mean_magnitude = mag_sum  / (data.len() as f64);
+        let delta_mags : Vec <f64> = mags.iter().map(|&x| x - mean_magnitude).collect(); //::<Vec<f64>>();
+        let abs_delta_mags : Vec <f64> = delta_mags.iter().map(|&x| x.abs()).collect(); //::<Vec<f64>>();
+        let mut min_val : f64 = MAX_NUM;
+        let mut max_val : f64 = MIN_NUM;
+        let mut min_idx : usize = 0;
+        let mut max_idx : usize = 0;
+
+        for (idx, value) in abs_delta_mags.iter().enumerate(){
+            // print!("({}, {})",idx,value);
+            match *value < min_val { 
+                true => {
+                    min_val = *value;
+                    min_idx = idx;
+                },
+                false => ()
+            }
+            match *value > max_val { 
+                true => {
+                    max_val = *value;
+                    max_idx = idx;
+                },
+                false => ()
+            }  
+        }
+
+        let first_index_max = first_idx[max_idx];
+        let second_index_max = second_idx[max_idx];
+        let abs_delta_mag_max = max_val;
+        let delta_mag_max = delta_mags[max_idx];
+
         CoordinateVector{
 
             size: data.len(),
             data : data,
             first_index : Some(first_idx),
             second_index : Some(second_idx),
-        }      
+            mean_magnitude : Some(mean_magnitude),
+            first_index_max : Some(first_index_max),
+            second_index_max : Some(second_index_max),
+        }
 
     }
 
