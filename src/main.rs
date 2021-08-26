@@ -1,11 +1,21 @@
 use itertools::izip;
-#[macro_use] extern crate text_io;
+// #[macro_use] extern crate text_io; // used to pause 
+// use rand::prelude::*;
+use rand::distributions::{Distribution, Uniform};
+use std::f64::consts::PI;
 
 
 const MAX_NUM : f64 = 1e6;
 const MIN_NUM : f64 = 0.0;
-const SCALE : f64 =  1e-4;
-const STOP : f64 = 1e-4;
+const SCALE : f64 =  0.01;
+const STOP_POWER : i32 = 10;
+
+fn is_some<T>(x: &Option<T>) -> bool{
+    match x {
+        Some(_y) => return true,
+        None => return false,
+    }
+}
 
 struct Coordinate {
 
@@ -15,10 +25,23 @@ struct Coordinate {
     mag: f64,
 }
 
+
+
 impl Coordinate {
 
 
     fn new(x : f64, y: f64, z: f64 ) -> Coordinate{
+
+        Coordinate {
+            x: x, 
+            y: y,
+            z: z,
+            mag : Coordinate::calc_mag(x,y,z),
+        }
+    }
+
+
+    fn unit(x : f64, y: f64, z: f64 ) -> Coordinate{
 
         let initial_mag = Coordinate::calc_mag(x,y,z);
         Coordinate {
@@ -27,6 +50,68 @@ impl Coordinate {
             z: z/initial_mag,
             mag : 1.0,
         }
+    }
+
+    fn zero() -> Coordinate{ Coordinate::new(0.,0.,0.) }
+
+    fn new_random() -> Coordinate {
+
+        let mut rng = rand::thread_rng();
+        let theta_range = Uniform::from(0.0..2.0 * PI);
+        let phi_range = Uniform::from(0.0..PI);
+
+        let theta = theta_range.sample(&mut rng);
+        let phi = phi_range.sample(&mut rng);
+
+        let x : f64 = theta.cos() * phi.sin();
+        let y : f64 = theta.sin() * phi.sin();
+        let z : f64 = phi.cos();
+
+        let mag: f64 = 1.0;
+
+        Coordinate {
+                x,
+                y,
+                z,
+                mag,
+            }
+        
+    }
+
+    fn project_onto_xz(&self) -> Coordinate {
+        
+        let x = self.x;
+        let y = 0.;
+        let z = self.z;
+        let mag = Coordinate::calc_mag(x,y,z);
+
+        
+        Coordinate {
+            x: x / mag,
+            y: y,
+            z: z / mag ,
+            mag : 1.0,
+        }
+    }
+
+    fn clone(&self) -> Coordinate {
+        
+        let x = self.x;
+        let y = self.y;
+        let z = self.z;
+        let mag = self.mag;
+
+        
+        Coordinate {
+            x,
+            y,
+            z,
+            mag,
+        }
+    }
+
+    fn copy(&self) -> Coordinate {
+        self.clone()
     }
 
     fn add(&self, pt:&Coordinate) -> Coordinate {
@@ -60,33 +145,13 @@ impl Coordinate {
         
     }
 
-    // fn delta_and_mag(&self, pt:&Coordinate) -> (Coordinate, f64) {
-
-    //     (pt.delta(&self), pt.delta(&self).mag())
-    // }
-    
-    // Vector from self to pt
-    fn delta(&self, pt:&Coordinate) -> Coordinate {
-
-        pt.sub(self)
-    }
 
     fn calc_mag(x:f64,y:f64,z:f64) -> f64 {
 
         (x.powi(2)  + y.powi(2) + z.powi(2)).sqrt()
     }
 
-    // fn data_and_mag(&self) -> (Coordinate,f64) {
-
-    //     return(*self,self.mag())
-    // }
-
-    // fn distance(&self, pt:&Coordinate) -> f64 {
-
-    //     self.delta(&pt).mag()
-        
-    // }
-
+  
     fn mult(&self, scale: f64) -> Coordinate {
 
         let x:f64 = scale * self.x;
@@ -102,46 +167,46 @@ impl Coordinate {
 
     }
 
-    fn reposition(&self, pt: &Coordinate, scale:f64, index:usize, sign:f64) -> Coordinate {
+    // fn reposition(&self, pt: &Coordinate, scale:f64, index:usize, sign:f64) -> Coordinate {
 
-        // println!("reposition");
-        // let x = &self.delta(pt);
-        // println!("x = ");
-        // x.print();
-        // let dx = x.mult(scale);
-        // println!("dx = ");
-        // dx.print();
-        // println!("self = ");
-        // self.print();
-        // let y = self.add(&dx);
-        // println!("y = ");
-        // y.print();
-        // let z = y.make_unit_vector();
-        // println!("z = ");
-        // z.print();
+    //     // println!("reposition");
+    //     // let x = &self.delta(pt);
+    //     // println!("x = ");
+    //     // x.print();
+    //     // let dx = x.mult(scale);
+    //     // println!("dx = ");
+    //     // dx.print();
+    //     // println!("self = ");
+    //     // self.print();
+    //     // let y = self.add(&dx);
+    //     // println!("y = ");
+    //     // y.print();
+    //     // let z = y.make_unit_vector();
+    //     // println!("z = ");
+    //     // z.print();
 
-        // let w = self.add(&self.delta(pt).mult(scale)).make_unit_vector();
-        // println!("w = ");
-        // w.print();
+    //     // let w = self.add(&self.delta(pt).mult(scale)).make_unit_vector();
+    //     // println!("w = ");
+    //     // w.print();
 
-        let delta = self.delta(pt).mult(scale * sign);
-        match index {
-            1 => {
-                let real_delta = Coordinate {
-                    x : delta.x,
-                    y : 0.0,
-                    z : delta.z,
-                    mag : Coordinate::calc_mag(delta.x, 0.0, delta.z),
-                };
-                return self.add(&real_delta).make_unit_vector()
-            },
-            _ => {
-                return self.add(&delta).make_unit_vector()
-            }
-        }
+    //     let delta = pt.sub(self).mult(scale * sign);
+    //     match index {
+    //         1 => {
+    //             let real_delta = Coordinate {
+    //                 x : delta.x,
+    //                 y : 0.0,
+    //                 z : delta.z,
+    //                 mag : Coordinate::calc_mag(delta.x, 0.0, delta.z),
+    //             };
+    //             return self.add(&real_delta).make_unit_vector()
+    //         },
+    //         _ => {
+    //             return self.add(&delta).make_unit_vector()
+    //         }
+    //     }
 
         
-    }
+    // }
 
     fn make_unit_vector(&self) -> Coordinate{
 
@@ -165,13 +230,16 @@ impl Coordinate {
         
         let eps = 1e-6_f64;
 
-        self.delta(&pt).mag < eps
+        self.sub(&pt).mag < eps
 
     }
 
-    fn print(&self, ch:char) {
+    fn print(&self, ch:char, precision: usize) {
+
+        let field:usize = precision + 4; 
     
-        print!("( {:6.3} , {:6.3} , {:6.3} ), |x| = {:6.3}{}",self.x,self.y,self.z, self.mag,ch)
+        print!("( {:field$.precision$} , {:field$.precision$} , {:field$.precision$} ), |x| = {:field$.precision$}{}",
+                    self.x,self.y,self.z, self.mag,ch,precision=precision,field=field)
     }
 
     fn sub_float(&self, value:f64) -> Coordinate {
@@ -187,10 +255,12 @@ impl Coordinate {
             z, 
             mag: Coordinate::calc_mag(x,y,z),
         }
-
-
     }
 
+    fn dot (&self, pt:&Coordinate) -> f64 {
+
+        self.x * pt.x + self.y * pt.y + self.z * pt.z
+    }
 
 
 }
@@ -200,201 +270,173 @@ struct CoordinateVector {
 
     size: usize,
     data:  Vec<Coordinate>,
-    first_index : Option <Vec <usize>>,
-    second_index : Option <Vec <usize>>,
-    mean_magnitude : Option <f64>,
-    first_index_max : Option <usize>,
-    second_index_max : Option <usize>,
-    magnitude_range : Option <f64>,
-    sign_max: Option <f64>,
 }
 
 impl CoordinateVector {
     
-    // fn data_and_mag(data : Vec<Coordinate> ) -> (Vec<Coordinate>,Vec<f64>,usize){
-
-    //     let mut newdata : &Vec <Coordinate> = &Vec::new() ;
-    //     for coordinate in data[0..data.len()].iter(){
-    //         newdata.push(&oordinate);
-    //     }
-    //     return (newdata, magnitudes,data.len())
-
-    // }
     
     fn new(data : Vec<Coordinate> ) -> CoordinateVector{
-        // self.data = data;
-        // self.size = self.data.len();
-        // self
 
-        // let (newdata, magnitudes, len) = CoordinateVector::data_and_mag(data);
 
         CoordinateVector{
 
             size: data.len(),
             data : data, // note this should move data
-            first_index : None,
-            second_index : None,
-            mean_magnitude : None,
-            first_index_max : None,
-            second_index_max : None,
-            magnitude_range : None,
-            sign_max : None,
-        }
-    }
-
-    // size: data.len(),
-    // data : data,
-    // first_index : Some(first_idx),
-    // second_index : Some(second_idx),
-    // mean_magnitude : Some(mean_magnitude),
-    // first_index_max : Some(first_index_max),
-    // second_index_max : Some(second_index_max),
-
-
-    fn print(&self) {
-
-        match &self.first_index{
-            Some(vec_idx1) => match &self.second_index{
-                Some(vec_idx2) => {
-                    println!("Length = {:3}",self.size);
-                    match &self.mean_magnitude {
-                        Some(x) => println!("E(|x|)={:6.3}",x),
-                        None => ()
-                    }
-                    match &self.first_index_max {
-                        Some(x) => match &self.second_index_max {
-                            Some(y) => println!("Max index = ({:3},{:3})",x,y),
-                            None => ()
-                        },
-                        None => ()
-                    }
-                    match &self.sign_max {
-                        Some(x) => println!("Sign = {:+3.1}",x),
-                        _ => ()
-                    }
-                    for (idx1, idx2, coordinate) in izip!(vec_idx1, vec_idx2, &self.data) {
-                        print!("({:3}, {:3}): ",idx1,idx2);
-                        coordinate.print(',');
-                        match &self.mean_magnitude {
-                            Some(x) => println!(" |x| - E(|x|)={:6.3}",coordinate.mag - x),
-                            None => ()
-                        }
-                    }
-                    match &self.magnitude_range {
-                        Some(x) => println!("max(|x|) - min(|x|) = {:6.3}",x),
-                        None => ()
-                    }
-                },
-                None =>  (), // only need to output the None case once
-            },
-            None => {
-                println!("Length = {:3}",self.size);
-                for coordinate in &self.data {
-                    coordinate.print('\n');
-                }
-            },
         }
     }
 
 
-    fn construct_differences(&self) -> CoordinateVector {
+    fn clone(&self) -> CoordinateVector {
+
+        let size: usize;
+        let mut data:  Vec<Coordinate> = Vec::new();
+
+
+
+        for coordinate in &self.data {
+            data.push(coordinate.clone())
+        }
+        return CoordinateVector::new(data);
+    }
+
+    
+    fn zero(&self) -> CoordinateVector{
+
+        let mut zero_vectors = self.clone();
+
+        for index in 0..self.size {
+            zero_vectors.data[index] = Coordinate::zero();
+        }
+        zero_vectors
+    }
+
+
+    fn print(&self, precision: usize) {
+
+        let field:usize = precision + 4; 
+
+        println!("Length = {:3}",self.size);
+        for coordinate in &self.data {
+            coordinate.print('\n', precision);
+        }
+    }
+
+
+    fn reposition (&self, differences: &CoordinateDifferences, scale:f64) -> CoordinateVector {
+
+        
+        let mut result = self.clone();
+        let mut forces = self.zero();
+        for (idx1, idx2, delta_vector, sign) in izip!(&differences.first_index,&differences.second_index,&differences.data,&differences.signs){
+            if *idx1 != 0 {
+                forces.data[*idx1]  = forces.data[*idx1].add(&delta_vector.mult(sign * delta_vector.mag.powi(-3) * scale)); // du_hat/|u|^2
+                
+            }
+            if *idx2 != 0 {
+                forces.data[*idx2]  = forces.data[*idx2].add(&delta_vector.mult(sign * -1.0 * delta_vector.mag.powi(-3) * scale));
+            }
+        }
+        for (idx, force) in forces.data.iter().enumerate() {
+            if idx == 0 {
+                continue;
+            }
+            result.data[idx] = result.data[idx].add(force).make_unit_vector();
+        }
+        return result;
+    }
+}
+
+struct CoordinateDifferences {
+
+    size: usize,
+    data:  Vec<Coordinate>,
+    first_index : Vec <usize>,
+    second_index : Vec <usize>,
+    mean_magnitude : f64,
+    magnitude_range : f64,
+    signs: Vec <f64>,
+    dots : Vec <f64>,
+}
+
+impl CoordinateDifferences{
+    
+    fn new(coordinates: &CoordinateVector) -> CoordinateDifferences {
+
         
         let mut data : Vec<Coordinate> = Vec::new();
         let mut first_idx : Vec <usize>  = Vec::new();
         let mut second_idx : Vec <usize> = Vec::new();
         let mut mags : Vec <f64> = Vec::new();
+        let mut dot_products : Vec <f64> = Vec::new();
         let mut mag_sum = 0_f64;
-        for (idx1, coordinate_1) in self.data[0..self.size-1].iter().enumerate() {
-            for (idx2, coordinate_2) in self.data[idx1+1..self.size].iter().enumerate(){
+        for (idx1, coordinate_1) in coordinates.data[0..coordinates.size-1].iter().enumerate() {
+            for (idx2, coordinate_2) in coordinates.data[idx1+1..coordinates.size].iter().enumerate(){
                 first_idx.push(idx1);
                 second_idx.push(idx1+idx2+1);
-                let difference = coordinate_2.delta(coordinate_1);
+                let difference = coordinate_1.sub(coordinate_2);
                 mags.push(difference.mag);
                 mag_sum += difference.mag;
                 data.push(difference);
+                dot_products.push(coordinate_1.dot(coordinate_2));
             }
         }
         let mean_magnitude = mag_sum  / (data.len() as f64);
         let delta_mags : Vec <f64> = mags.iter().map(|&x| x - mean_magnitude).collect(); //::<Vec<f64>>();
-        let abs_delta_mags : Vec <f64> = delta_mags.iter().map(|&x| x.abs()).collect(); //::<Vec<f64>>();
+        let signs : Vec <f64> = mags.iter().map(|&x| (x - mean_magnitude) as f64 * 2.0 - 1.0 ).collect(); 
         let mut min_val : f64 = MAX_NUM;
         let mut max_val : f64 = MIN_NUM;
-        let mut min_idx : usize = 0;
-        let mut max_idx : usize = 0;
 
-        for (idx, value) in abs_delta_mags.iter().enumerate(){
+
+        for (idx, value) in delta_mags.iter().enumerate(){
             // print!("({}, {})",idx,value);
             match *value < min_val { 
                 true => {
                     min_val = *value;
-                    min_idx = idx;
+                    // min_idx = idx;
                 },
                 false => ()
             }
             match *value > max_val { 
                 true => {
                     max_val = *value;
-                    max_idx = idx;
+                    // max_idx = idx;
                 },
                 false => ()
             }  
         }
 
-        let first_index_max = first_idx[max_idx];
-        let second_index_max = second_idx[max_idx];
-        let abs_delta_mag_max = max_val;
-        let delta_mag_max = delta_mags[max_idx];
         let mag_range = max_val - min_val;
-        let sign = delta_mag_max / delta_mag_max.abs();
 
-        CoordinateVector{
+
+        CoordinateDifferences{
 
             size: data.len(),
             data : data,
-            first_index : Some(first_idx),
-            second_index : Some(second_idx),
-            mean_magnitude : Some(mean_magnitude),
-            first_index_max : Some(first_index_max),
-            second_index_max : Some(second_index_max),
-            magnitude_range : Some(mag_range),
-            sign_max : Some(sign),
+            first_index : first_idx,
+            second_index : second_idx,
+            mean_magnitude : mean_magnitude,
+            magnitude_range : mag_range,
+            signs : signs,
+            dots : dot_products,
         }
 
     }
 
-    fn reposition (mut self, differences: &CoordinateVector) -> CoordinateVector {
+    fn print(&self, precision: usize) {
 
-        // let second_index_max : usize;
-        // let first_index_max : usize;
-        // let sign : f64;
-        
-        match differences.second_index_max {
-            Some(x) => {
-                // second_index_max = x;
-                match differences.first_index_max {
-                    Some(y) => {
-                        // first_index_max = y;
-                        match differences.sign_max {
-                            Some(z) => {
-                                // sign = z;
-                                self.data[x] = self.data[x]
-                                .reposition(&self.data[y], SCALE, x, z);
-                                return CoordinateVector::new(self.data);
-                            },
-                            None => {
-                                panic!("No sign");
-                            }
-                        };
-                    },
-                    None => {
-                        panic!("No first_index_max");
-                    }
-                };
-            },
-            None => {
-                panic!("No second_index_max");
-            }
-        };
+        let field:usize = precision + 4; 
+
+        println!("Length = {:3}",self.size);
+        println!("E(|x|) = {:field$.precision$}",&self.mean_magnitude, precision=precision, field=field);
+        for (idx1, idx2, coordinate, dot, sign) in izip!(&self.first_index, &self.second_index, &self.data, &self.dots, &self.signs) {
+            print!("({:3}, {:3}): ",idx1,idx2);
+            coordinate.print(',',precision);
+            print!(" |x| - E(|x|) = {:field$.precision$}, Sign = [{:+.0}]",
+                                                        coordinate.mag - &self.mean_magnitude, sign,
+                                                        precision=precision, field=field);
+            println!(" <a.b> = {:field$.precision$}",dot, field=field, precision=precision);
+        }
+        println!("max(|x|) - min(|x|) = {:field$.precision$}",&self.magnitude_range, precision=precision, field=field);
     }
 
 }
@@ -402,38 +444,66 @@ impl CoordinateVector {
 
 fn main() {
 
-    let x1 = Coordinate::new(0. , 0., 1.);
-    let mut x2 = Coordinate::new(0.95 , 0.,-(1.0 - 0.95_f64.powi(2)).sqrt());
-    let mut x3 = Coordinate::new(-(0.95_f64/2.0).sqrt() , (0.95_f64/2.0).sqrt() ,-(1.0 - 0.95_f64.powi(2)).sqrt());
-    let mut x4 = Coordinate::new(-0.95/2.0_f64.sqrt() , -0.95/2.0_f64.sqrt()  , -(1.0 - 0.95_f64.powi(2)).sqrt());
 
-    let data = vec![x1,x2,x3,x4];
+    let x1 = Coordinate::unit(0. , 0., 1.);
+    let mut x2 = Coordinate::new_random();
+    x2 = x2.project_onto_xz();
+    let x3 = Coordinate::new_random();
+    let x4 = Coordinate::new_random();
+    let x5 = Coordinate::new_random();
+    let x6 = Coordinate::new_random();
+
+    let stop = 10_f64.powi(-STOP_POWER);
+    const PRECISION: usize = STOP_POWER as usize + 1; 
+
+    let data = vec![x1,x2,x3,x4,x5,x6];
     let mut coordinates = CoordinateVector::new(data);
-    // let mut max_error = 10000.0_f64;
-    // let mut max_magnitude = 0.0_f64;
-    // let mut min_magnitude = 0.0_f64;
-    // let mut max_idx1 = 0_usize;
-    // let mut max_idx2 = 0_usize;
-    // let mut this_magnitude = 0.0_f64;
-    // let mut max_distance = Coordinate::new(0. , 0., 0.);
-    // let mut difference= Coordinate::new(0. , 0., 0.);
-    // let proportional_change = 1e-2_f64;
-    // let mut iteration_number = 0_usize;
+    // let mut new_coordinates = CoordinateVector::new(data);
+    let mut prev_scale : f64;
+    const NUMBER_OF_CYCLES_BETWEEN_PRINT: usize = 1;
+    
+
+    let mut scale = SCALE;
+    let mut max_difference:f64;
+    let mut new_max_difference:f64;
+    let mut counter: usize = 0;
+    // let mut prev_max_distance: f64 = 1000.0;
+    println!("Initial values **************************");
+    coordinates.print(PRECISION);
+    let mut coordinate_differences = CoordinateDifferences::new(&coordinates);
+    coordinate_differences.print(PRECISION);
+    max_difference = coordinate_differences.magnitude_range;
     loop {
-        coordinates.print();
-        let coordinate_differences = coordinates.construct_differences();
-        coordinate_differences.print();
-        // println!("{}",coordinate_differences.first_index_max.unwrap());
-        // println!("{}",coordinate_differences.second_index_max.unwrap());
-        // coordinates.data[3].print('\n');
-        // coordinates.data[2].print('\n');
-        coordinates = coordinates.reposition(&coordinate_differences);
-        coordinates.print();
-        // reads until a \n is encountered
-        if coordinate_differences.magnitude_range.unwrap() < STOP {
+        println!("loop: counter = {} **************************",counter);
+        let new_coordinates = coordinates.reposition(&coordinate_differences, scale);
+        if counter % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+            new_coordinates.print(PRECISION);
+        }
+        let new_coordinate_differences = CoordinateDifferences::new(&new_coordinates);
+        if counter % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+            new_coordinate_differences.print(PRECISION);
+        }
+        new_max_difference = new_coordinate_differences.magnitude_range;
+
+        if counter % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+            print!("max_difference = {:.precision$}, new_max_difference = {:.precision$}, %diff = {:.precision$}\n",max_difference, new_max_difference, 1. - new_max_difference/max_difference, precision = PRECISION+2);
+        }
+        if max_difference < stop {
             break;
         }
-
+        prev_scale = scale;
+        scale =  scale.min(max_difference * 0.01);
+        if counter % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+            print!("prev_scale = {:.precision$}, scale = {:.precision$}, %diff = {:.precision$}\n",prev_scale, scale, 1. - scale/prev_scale, precision = PRECISION+2);
+        }
+ 
+        coordinates = new_coordinates;
+        coordinate_differences = new_coordinate_differences;
+        max_difference = new_max_difference;
+        counter += 1;
+        if counter > 10_usize.pow(6) {
+            break;
+        }
     }
-
+    // print!("\n\n{:?}",all_scales);
 }
