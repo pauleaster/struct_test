@@ -10,12 +10,6 @@ const MIN_NUM : f64 = 0.0;
 const SCALE : f64 =  0.01;
 const STOP_POWER : i32 = 10;
 
-fn is_some<T>(x: &Option<T>) -> bool{
-    match x {
-        Some(_y) => return true,
-        None => return false,
-    }
-}
 
 struct Coordinate {
 
@@ -167,46 +161,7 @@ impl Coordinate {
 
     }
 
-    // fn reposition(&self, pt: &Coordinate, scale:f64, index:usize, sign:f64) -> Coordinate {
-
-    //     // println!("reposition");
-    //     // let x = &self.delta(pt);
-    //     // println!("x = ");
-    //     // x.print();
-    //     // let dx = x.mult(scale);
-    //     // println!("dx = ");
-    //     // dx.print();
-    //     // println!("self = ");
-    //     // self.print();
-    //     // let y = self.add(&dx);
-    //     // println!("y = ");
-    //     // y.print();
-    //     // let z = y.make_unit_vector();
-    //     // println!("z = ");
-    //     // z.print();
-
-    //     // let w = self.add(&self.delta(pt).mult(scale)).make_unit_vector();
-    //     // println!("w = ");
-    //     // w.print();
-
-    //     let delta = pt.sub(self).mult(scale * sign);
-    //     match index {
-    //         1 => {
-    //             let real_delta = Coordinate {
-    //                 x : delta.x,
-    //                 y : 0.0,
-    //                 z : delta.z,
-    //                 mag : Coordinate::calc_mag(delta.x, 0.0, delta.z),
-    //             };
-    //             return self.add(&real_delta).make_unit_vector()
-    //         },
-    //         _ => {
-    //             return self.add(&delta).make_unit_vector()
-    //         }
-    //     }
-
-        
-    // }
+    
 
     fn make_unit_vector(&self) -> Coordinate{
 
@@ -288,7 +243,6 @@ impl CoordinateVector {
 
     fn clone(&self) -> CoordinateVector {
 
-        let size: usize;
         let mut data:  Vec<Coordinate> = Vec::new();
 
 
@@ -327,13 +281,13 @@ impl CoordinateVector {
         
         let mut result = self.clone();
         let mut forces = self.zero();
-        for (idx1, idx2, delta_vector, sign) in izip!(&differences.first_index,&differences.second_index,&differences.data,&differences.signs){
+        for (idx1, idx2, delta_vector) in izip!(&differences.first_index,&differences.second_index,&differences.data){
             if *idx1 != 0 {
-                forces.data[*idx1]  = forces.data[*idx1].add(&delta_vector.mult(sign * delta_vector.mag.powi(-3) * scale)); // du_hat/|u|^2
+                forces.data[*idx1]  = forces.data[*idx1].add(&delta_vector.mult(delta_vector.mag.powi(-3) * scale)); // du_hat/|u|^2
                 
             }
             if *idx2 != 0 {
-                forces.data[*idx2]  = forces.data[*idx2].add(&delta_vector.mult(sign * -1.0 * delta_vector.mag.powi(-3) * scale));
+                forces.data[*idx2]  = forces.data[*idx2].add(&delta_vector.mult(-1.0 * delta_vector.mag.powi(-3) * scale));
             }
         }
         for (idx, force) in forces.data.iter().enumerate() {
@@ -382,13 +336,12 @@ impl CoordinateDifferences{
         }
         let mean_magnitude = mag_sum  / (data.len() as f64);
         let delta_mags : Vec <f64> = mags.iter().map(|&x| x - mean_magnitude).collect(); //::<Vec<f64>>();
-        let signs : Vec <f64> = mags.iter().map(|&x| (x - mean_magnitude) as f64 * 2.0 - 1.0 ).collect(); 
+        let signs : Vec <f64> = mags.iter().map(|&x| (x - mean_magnitude)/(x - mean_magnitude).abs() as f64 * 2.0 - 1.0 ).collect(); 
         let mut min_val : f64 = MAX_NUM;
         let mut max_val : f64 = MIN_NUM;
 
 
-        for (idx, value) in delta_mags.iter().enumerate(){
-            // print!("({}, {})",idx,value);
+        for value in delta_mags.iter(){
             match *value < min_val { 
                 true => {
                     min_val = *value;
