@@ -286,41 +286,48 @@ impl CoordinateVector {
 
     fn new_from_fixed_sequence(vertices: usize) -> CoordinateVector {
 
-        if vertices < 2 {
-            panic!("Must have more than one vertex")
+        if vertices < 3 {
+            panic!("Must have more than two vertices")
         } else {
 
             let mut data : Vec<Coordinate> = Vec::new(); 
-            let m = (vertices as f64).sqrt() as usize;
-            let dtheta = 2.0 * PI / ((m as f64) + 1.0 );
+            let m = ((vertices - 2) as f64).sqrt() as usize;
+            let dtheta = 2.0 * PI / ((m as f64) + 2.0 );
             let dphi = PI / ((m as f64) + 2.0 );
-            for itheta in 0..m { 
+            // First the 0th vertex at z=1
+            data.push(Coordinate::new_from_spherical_coordinates(1.0, 0.0 ,0.0 ));
+            println!("({},{}): theta = {:0.6}, phi = {:0.6}", 0, 0, 0.0, 0.0);
+            println!(" length = {}",data.len());
+            // Second the 1st vertex at x=1
+            data.push(Coordinate::new_from_spherical_coordinates(1.0, 0.0 , PI/2.0 ));
+            println!("({},{}): theta = {:0.6}, phi = {:0.6}", 0, 1, 0.0, PI/2.0);
+            println!(" length = {}",data.len());
+            for itheta in 1..m + 1 { 
                 for iphi in 1..m + 1 {
                     let theta = (itheta as f64 )* dtheta;
                     let phi = (iphi as f64) * dphi;
-                    print!("({},{}): theta = {:0.6}, phi = {:0.6}", itheta, iphi, theta,phi);
-                    println!("\ncos(theta)\n = {:0.6}",theta.cos());
-                    data.push(Coordinate::new_from_spherical_coordinates(1.0,theta ,phi ));
+                    println!("({},{}): theta = {:0.6}, phi = {:0.6}", itheta, iphi, theta, phi);
+                    data.push(Coordinate::new_from_spherical_coordinates(1.0, theta, phi));
                     println!(" length = {}",data.len());
                     let cx = &data[data.len()-1].x;
                     let cy = &data[data.len()-1].y;
                     let cz = &data[data.len()-1].z;
-                    println!("({:0.6}, {:0.6}, {:0.6} )",cx,cy,cz);
+                    println!("({:0.6}, {:0.6}, {:0.6} )", cx, cy, cz);
 
                 }
             }
-            if m*m < vertices {
-                for vertex in m*m..vertices {
-                    let itheta = (vertex - m*m) as f64 + 0.5;
-                    let iphi = (vertex - m*m) as f64 + 0.5;
+            if m*m  + 2 < vertices {
+                for vertex in m*m + 2 ..vertices {
+                    let itheta = (vertex - m*m - 2) as f64 + 0.5;
+                    let iphi = (vertex - m*m - 2) as f64 + 0.5;
                     let theta = (itheta as f64 )* dtheta;
                     let phi = (iphi as f64) * dphi;
-                    println!("theta = {:0.6}, phi = {:0.6}", theta,phi);
+                    println!("theta = {:0.6}, phi = {:0.6}", theta, phi);
                     data.push(Coordinate::new_from_spherical_coordinates(1.0, theta, phi));
                     let cx = &data[data.len()-1].x;
                     let cy = &data[data.len()-1].y;
                     let cz = &data[data.len()-1].z;
-                    println!("({:0.6}, {:0.6}, {:0.6} )",cx,cy,cz);
+                    println!("({:0.6}, {:0.6}, {:0.6} )", cx, cy, cz);
                 }
             }
             if data.len() != vertices{
@@ -615,7 +622,7 @@ fn main() {
     // Dodecahedron: d12 20 vertices, 12 faces
     // Icosahedron: d20 12 vertices, 20 faces
 
-    const NUMBER_OF_VERTICES:usize = 12;
+    const NUMBER_OF_VERTICES:usize = 5;
 
     let now = SystemTime::now();
     const SCALE : f64 =  0.1;
