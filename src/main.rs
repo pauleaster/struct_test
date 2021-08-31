@@ -1,14 +1,20 @@
 use itertools::izip;
+use std::time::SystemTime;
 // #[macro_use] extern crate text_io; // used to pause 
 // use rand::prelude::*;
 use rand::distributions::{Distribution, Uniform};
+// use rand::SeedableRng;
+// use rand::rngs::StdRng;
 use std::f64::consts::PI;
-
 
 const MAX_NUM : f64 = 1e6;
 const MIN_NUM : f64 = 0.0;
-const SCALE : f64 =  0.01;
-const STOP_POWER : i32 = 10;
+
+
+fn float_equals(x: f64, y: f64, eps: f64) -> bool{
+    
+    (x-y).abs() < eps.abs()
+}
 
 
 struct Coordinate {
@@ -51,17 +57,27 @@ impl Coordinate {
     fn new_random() -> Coordinate {
 
         let mut rng = rand::thread_rng();
+        // let mut rng = StdRng::seed_from_u64(1);
         let theta_range = Uniform::from(0.0..2.0 * PI);
         let phi_range = Uniform::from(0.0..PI);
 
         let theta = theta_range.sample(&mut rng);
         let phi = phi_range.sample(&mut rng);
 
-        let x : f64 = theta.cos() * phi.sin();
-        let y : f64 = theta.sin() * phi.sin();
-        let z : f64 = phi.cos();
+        // println!("theta = {}, phi = {}",theta,phi);
 
-        let mag: f64 = 1.0;
+        Coordinate::new_from_spherical_coordinates(1.0,  theta, phi)
+        
+    }
+
+    fn new_from_spherical_coordinates( r: f64, theta: f64, phi: f64) -> Coordinate{
+
+
+        let x : f64 = r * theta.cos() * phi.sin();
+        let y : f64 = r * theta.sin() * phi.sin();
+        let z : f64 = r * phi.cos();
+
+        let mag: f64 = r;
 
         Coordinate {
                 x,
@@ -69,7 +85,7 @@ impl Coordinate {
                 z,
                 mag,
             }
-        
+
     }
 
     fn project_onto_xz(&self) -> Coordinate {
@@ -81,10 +97,10 @@ impl Coordinate {
 
         
         Coordinate {
-            x: x / mag,
+            x: x,
             y: y,
-            z: z / mag ,
-            mag : 1.0,
+            z: z,
+            mag :mag,
         }
     }
 
@@ -212,9 +228,18 @@ impl Coordinate {
         }
     }
 
-    fn dot (&self, pt:&Coordinate) -> f64 {
+    fn dot(&self, pt:&Coordinate) -> f64 {
 
         self.x * pt.x + self.y * pt.y + self.z * pt.z
+    }
+
+    fn unit_dot(&self, pt: &Coordinate) -> f64{
+        self.dot(pt) / self.mag / pt.mag
+    }
+
+    fn angle(&self, pt:&Coordinate) -> f64 {
+
+        self.unit_dot(pt).acos() * 180.0 / PI 
     }
 
 
@@ -238,6 +263,73 @@ impl CoordinateVector {
             size: data.len(),
             data : data, // note this should move data
         }
+    }
+
+    fn new_from_random_vertices(vertices: usize) -> CoordinateVector {
+
+        if vertices < 2 {
+            panic!("Must have more than one vertex")
+        } else {
+
+            let mut data : Vec<Coordinate> = Vec::new(); 
+            for vertex in 0..vertices{
+                data.push(Coordinate::new_random());
+            }
+            if data.len() != vertices{
+                panic!("The length of the CoordinateVector is wrong, it should be {} but it is {}.",vertices,data.len());
+            }
+            CoordinateVector::new(data)
+
+        }
+
+    }
+
+    fn new_from_fixed_sequence(vertices: usize) -> CoordinateVector {
+
+        if vertices < 2 {
+            panic!("Must have more than one vertex")
+        } else {
+
+            let mut data : Vec<Coordinate> = Vec::new(); 
+            let m = (vertices as f64).sqrt() as usize;
+            let dtheta = 2.0 * PI / ((m as f64) + 1.0 );
+            let dphi = PI / ((m as f64) + 2.0 );
+            for itheta in 0..m { 
+                for iphi in 1..m + 1 {
+                    let theta = (itheta as f64 )* dtheta;
+                    let phi = (iphi as f64) * dphi;
+                    print!("({},{}): theta = {:0.6}, phi = {:0.6}", itheta, iphi, theta,phi);
+                    println!("\ncos(theta)\n = {:0.6}",theta.cos());
+                    data.push(Coordinate::new_from_spherical_coordinates(1.0,theta ,phi ));
+                    println!(" length = {}",data.len());
+                    let cx = &data[data.len()-1].x;
+                    let cy = &data[data.len()-1].y;
+                    let cz = &data[data.len()-1].z;
+                    println!("({:0.6}, {:0.6}, {:0.6} )",cx,cy,cz);
+
+                }
+            }
+            if m*m < vertices {
+                for vertex in m*m..vertices {
+                    let itheta = (vertex - m*m) as f64 + 0.5;
+                    let iphi = (vertex - m*m) as f64 + 0.5;
+                    let theta = (itheta as f64 )* dtheta;
+                    let phi = (iphi as f64) * dphi;
+                    println!("theta = {:0.6}, phi = {:0.6}", theta,phi);
+                    data.push(Coordinate::new_from_spherical_coordinates(1.0, theta, phi));
+                    let cx = &data[data.len()-1].x;
+                    let cy = &data[data.len()-1].y;
+                    let cz = &data[data.len()-1].z;
+                    println!("({:0.6}, {:0.6}, {:0.6} )",cx,cy,cz);
+                }
+            }
+            if data.len() != vertices{
+                panic!("The length of the CoordinateVector is wrong, it should be {} but it is {}.",vertices,data.len());
+            }
+            CoordinateVector::new(data)
+
+        }
+
     }
 
 
@@ -267,39 +359,49 @@ impl CoordinateVector {
 
     fn print(&self, precision: usize) {
 
-        let field:usize = precision + 4; 
 
         println!("Length = {:3}",self.size);
-        for coordinate in &self.data {
+        for (idx, coordinate) in self.data.iter().enumerate() {
+            print!("{}:",idx);
             coordinate.print('\n', precision);
         }
     }
 
+    fn max_mag(&self) -> f64 {
+        self.clone().data.iter().map(|x| x.mag).fold(-1e6,f64::max) // https://stackoverflow.com/a/66455028/1542485
+        
+    }
 
-    fn reposition (&self, differences: &CoordinateDifferences, scale:f64) -> CoordinateVector {
+    fn reposition (&self, differences: &CoordinateDifferences, scale:f64, counter: usize, number_of_cycles_between_print: usize) -> (CoordinateVector, f64) {
 
         
         let mut result = self.clone();
-        let mut forces = self.zero();
+        let mut dx = self.zero();
+        let mut dx_parallel = self.zero();
         for (idx1, idx2, delta_vector) in izip!(&differences.first_index,&differences.second_index,&differences.data){
-            if *idx1 != 0 {
-                forces.data[*idx1]  = forces.data[*idx1].add(&delta_vector.mult(delta_vector.mag.powi(-3) * scale)); // du_hat/|u|^2
-                
-            }
-            if *idx2 != 0 {
-                forces.data[*idx2]  = forces.data[*idx2].add(&delta_vector.mult(-1.0 * delta_vector.mag.powi(-3) * scale));
-            }
+            dx.data[*idx1]  = dx.data[*idx1].add(&delta_vector.mult(delta_vector.mag.powi(-3) * scale)); // du_hat/|u|^2
+            dx.data[*idx2]  = dx.data[*idx2].add(&delta_vector.mult(-1.0 * delta_vector.mag.powi(-3) * scale));
         }
-        for (idx, force) in forces.data.iter().enumerate() {
-            if idx == 0 {
-                continue;
-            }
-            result.data[idx] = result.data[idx].add(force).make_unit_vector();
+        for (idx, dx_val) in dx.data.iter().enumerate() {
+            dx_parallel.data[idx] = dx_val.sub(&result.data[idx].mult(dx_val.dot(&result.data[idx])));
+            result.data[idx] = result.data[idx].add(&dx_parallel.data[idx]).make_unit_vector();
         }
-        return result;
+        // if counter % number_of_cycles_between_print == 0 { 
+        //     println!("***************** dx_parallel *********************");
+        //     dx_parallel.print(STOP_POWER as usize + 2);
+        //     println!("dx_parallel.max_mag()={}", dx_parallel.max_mag());
+        //     println!("***************** dx *********************");
+        // }
+         return (result, dx_parallel.max_mag());
     }
+    
 }
 
+struct swap_result {
+    edge1: Vec<f64>,
+    edge2: Vec<f64>,
+    swapped: bool,
+}
 struct CoordinateDifferences {
 
     size: usize,
@@ -310,6 +412,7 @@ struct CoordinateDifferences {
     magnitude_range : f64,
     signs: Vec <f64>,
     dots : Vec <f64>,
+    edge_dots : Vec<Vec<f64>>,
 }
 
 impl CoordinateDifferences{
@@ -336,7 +439,7 @@ impl CoordinateDifferences{
         }
         let mean_magnitude = mag_sum  / (data.len() as f64);
         let delta_mags : Vec <f64> = mags.iter().map(|&x| x - mean_magnitude).collect(); //::<Vec<f64>>();
-        let signs : Vec <f64> = mags.iter().map(|&x| (x - mean_magnitude)/(x - mean_magnitude).abs() as f64 * 2.0 - 1.0 ).collect(); 
+        let signs : Vec <f64> = mags.iter().map(|&x| (x - mean_magnitude)/(x - mean_magnitude).abs()).collect(); 
         let mut min_val : f64 = MAX_NUM;
         let mut max_val : f64 = MIN_NUM;
 
@@ -359,6 +462,7 @@ impl CoordinateDifferences{
         }
 
         let mag_range = max_val - min_val;
+        let edge_dots = CoordinateDifferences::get_edge_dots(&first_idx,&second_idx,&data);
 
 
         CoordinateDifferences{
@@ -371,6 +475,7 @@ impl CoordinateDifferences{
             magnitude_range : mag_range,
             signs : signs,
             dots : dot_products,
+            edge_dots : edge_dots,
         }
 
     }
@@ -378,85 +483,226 @@ impl CoordinateDifferences{
     fn print(&self, precision: usize) {
 
         let field:usize = precision + 4; 
+        const FLOAT_FILTER: bool = true;
+        const ANGLE_FILTER: f64 = 60.0;
+        const EPS: f64 = 1e-6;
+        let mut angle_filter_count: usize = 0;
+
+        
 
         println!("Length = {:3}",self.size);
         println!("E(|x|) = {:field$.precision$}",&self.mean_magnitude, precision=precision, field=field);
         for (idx1, idx2, coordinate, dot, sign) in izip!(&self.first_index, &self.second_index, &self.data, &self.dots, &self.signs) {
             print!("({:3}, {:3}): ",idx1,idx2);
             coordinate.print(',',precision);
-            print!(" |x| - E(|x|) = {:field$.precision$}, Sign = [{:+.0}]",
-                                                        coordinate.mag - &self.mean_magnitude, sign,
-                                                        precision=precision, field=field);
+            print!(" Sign = [{:+.0}]",
+                                                        sign);
             println!(" <a.b> = {:field$.precision$}",dot, field=field, precision=precision);
         }
+        if FLOAT_FILTER {
+            println!("Vertices filtered by angle to {}",ANGLE_FILTER);
+        }
+        for edge_vec in self.edge_dots.iter() {
+            if ! FLOAT_FILTER{
+                println!("<( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}",edge_vec[0],edge_vec[1],edge_vec[2],edge_vec[3],edge_vec[4], field=field, precision=precision,angle_precision = precision-2);
+            } else {
+                if float_equals(ANGLE_FILTER, edge_vec[4], EPS) {
+                    angle_filter_count += 1; 
+                    println!("{}, <( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}",angle_filter_count, edge_vec[0],edge_vec[1],edge_vec[2],edge_vec[3],edge_vec[4], field=field, precision=precision,angle_precision = precision-2);
+                }
+            }
+
+        }
+        if FLOAT_FILTER {
+            println!("Total filtered vertices =  {}",angle_filter_count); 
+        }
         println!("max(|x|) - min(|x|) = {:field$.precision$}",&self.magnitude_range, precision=precision, field=field);
+    }
+
+    fn edge_copy( edge: & Vec <f64>) -> Vec<f64> {
+
+        return edge.iter().map(|x| *x).collect()
+    }
+
+    fn order_edges( first_edge: & Vec<f64> ,  second_edge: & Vec<f64>) -> swap_result {
+        if first_edge[0] < second_edge[0] { 
+            return swap_result{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+        } else if first_edge[0] > second_edge[0] {
+            return swap_result{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+        } else if first_edge[1] < second_edge[1] {
+            return swap_result{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+        } else if first_edge[1] > second_edge[1] {
+            return swap_result{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+        } else if first_edge[2] < second_edge[2] {
+            return swap_result{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+        } else {
+            return swap_result{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+        }
+    }
+
+    fn edge_vector_copy( edge_data: & Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+
+        return edge_data.iter().map(|x| CoordinateDifferences::edge_copy(x)).collect()
+    }
+
+    
+    fn sort_edge_dots(edge_data: & Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+
+        let len: usize = edge_data.len();
+        let mut sorted_edges = CoordinateDifferences::edge_vector_copy(edge_data);
+
+
+        for _i in 0.. len - 1 { // bubble sort
+            let mut swapped: bool = false;
+            for j in 0.. len - 1 {
+                let this_swap_result = CoordinateDifferences::order_edges(&sorted_edges[j], &sorted_edges[j+1]);
+                sorted_edges[j] = this_swap_result.edge1;
+                sorted_edges[j+1] = this_swap_result.edge2;
+                swapped = swapped | this_swap_result.swapped;
+            }
+            if ! swapped {
+                break;
+            }
+        }
+        sorted_edges
+
+
+    }
+
+    fn get_edge_dots(first_index:&Vec <usize>,second_index:&Vec <usize>,data:&Vec<Coordinate>) -> Vec<Vec<f64>>{
+
+
+        let mut result : Vec<Vec<f64>> = Vec::new();
+        let len = first_index.len();
+        for ((idx1, first_idx1), second_idx1) in izip!(first_index[..len-1].iter().enumerate(),second_index[..len-1].iter()){
+            for ((idx2, first_idx2), second_idx2) in izip!(first_index.iter().enumerate(),second_index.iter()){
+                if idx2 <= idx1 {
+                    continue;
+                }
+                if *first_idx1 == *first_idx2 {
+                    let mut this_vec : Vec<f64> = Vec::new();                 
+                    this_vec.extend([*second_idx1 as f64, *first_idx1 as f64, *second_idx2 as f64, data[idx1].unit_dot(&data[idx2]), data[idx1].angle(&data[idx2])]); 
+                    result.push(this_vec);
+                } else if second_idx1 == second_idx2 {
+                        let mut this_vec : Vec<f64> = Vec::new();
+                        this_vec.extend([*first_idx1 as f64, *second_idx1 as f64, *first_idx2 as f64, data[idx1].unit_dot(&data[idx2]), data[idx1].angle(&data[idx2])]); 
+                        result.push(this_vec);
+                } else if first_idx1 == second_idx2 {
+                        let mut this_vec : Vec<f64> = Vec::new();
+                        this_vec.extend([*second_idx1 as f64, *first_idx1 as f64, *first_idx2 as f64, -1.0 * data[idx1].unit_dot(&data[idx2]), data[idx1].angle(&data[idx2].mult(-1.0))]); 
+                        result.push(this_vec);
+                } else if second_idx1 == first_idx2 {
+                    let mut this_vec : Vec<f64> = Vec::new();
+                    this_vec.extend([*first_idx1 as f64, *second_idx1 as f64, *second_idx2 as f64, -1.0 * data[idx1].unit_dot(&data[idx2]), data[idx1].angle(&data[idx2].mult(-1.0))]); 
+                    result.push(this_vec);
+                }
+            }
+        } 
+        CoordinateDifferences::sort_edge_dots(&result)
     }
 
 }
 
 
+
+
 fn main() {
 
+    // Tetrahedron, d4: 4 vertices, 4 faces
+    // Cube, d6: 8 vertices, 6 faces
+    // Equilateral octohedron, d8: 6 vertices, 8 faces
+    // Pentagonal bipyramid, d10: 7 vertices, 10 faces
+    // Dodecahedron: d12 20 vertices, 12 faces
+    // Icosahedron: d20 12 vertices, 20 faces
 
-    let x1 = Coordinate::unit(0. , 0., 1.);
-    let mut x2 = Coordinate::new_random();
-    x2 = x2.project_onto_xz();
-    let x3 = Coordinate::new_random();
-    let x4 = Coordinate::new_random();
-    let x5 = Coordinate::new_random();
-    let x6 = Coordinate::new_random();
+    const NUMBER_OF_VERTICES:usize = 12;
 
+    let now = SystemTime::now();
+    const SCALE : f64 =  0.1;
+    const STOP_POWER : i32 = 10;
     let stop = 10_f64.powi(-STOP_POWER);
     const PRECISION: usize = STOP_POWER as usize + 1; 
+    const USE_RANDOM_VERTICES : bool = false;
+    let mut coordinates : CoordinateVector;
 
-    let data = vec![x1,x2,x3,x4,x5,x6];
-    let mut coordinates = CoordinateVector::new(data);
+
+    // let data = vec![x1,x2,x3,x4,x5,x6];
+    if USE_RANDOM_VERTICES {
+        coordinates = CoordinateVector::new_from_random_vertices(NUMBER_OF_VERTICES);
+    } else {
+        coordinates = CoordinateVector::new_from_fixed_sequence(NUMBER_OF_VERTICES);
+    }
+    
+    
     // let mut new_coordinates = CoordinateVector::new(data);
-    let mut prev_scale : f64;
-    const NUMBER_OF_CYCLES_BETWEEN_PRINT: usize = 1;
+
+    const NUMBER_OF_CYCLES_BETWEEN_PRINT: usize = 10000;
     
 
-    let mut scale = SCALE;
-    let mut max_difference:f64;
-    let mut new_max_difference:f64;
+    let  scale = SCALE;
+    let mut max_dx:f64 = 1e6;
+    let new_max_dx:f64 = 1e6;
     let mut counter: usize = 0;
     // let mut prev_max_distance: f64 = 1000.0;
     println!("Initial values **************************");
     coordinates.print(PRECISION);
     let mut coordinate_differences = CoordinateDifferences::new(&coordinates);
     coordinate_differences.print(PRECISION);
-    max_difference = coordinate_differences.magnitude_range;
     loop {
-        println!("loop: counter = {} **************************",counter);
-        let new_coordinates = coordinates.reposition(&coordinate_differences, scale);
-        if counter % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+        
+        let (new_coordinates, new_max_dx) = coordinates.reposition(&coordinate_differences, scale, counter, NUMBER_OF_CYCLES_BETWEEN_PRINT);
+        if counter + 1 % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+            println!("loop: counter = {} **************************",counter);
             new_coordinates.print(PRECISION);
         }
         let new_coordinate_differences = CoordinateDifferences::new(&new_coordinates);
-        if counter % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+        if counter + 1 % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
             new_coordinate_differences.print(PRECISION);
         }
-        new_max_difference = new_coordinate_differences.magnitude_range;
 
-        if counter % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
-            print!("max_difference = {:.precision$}, new_max_difference = {:.precision$}, %diff = {:.precision$}\n",max_difference, new_max_difference, 1. - new_max_difference/max_difference, precision = PRECISION+2);
+        if counter + 1 % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+            print!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}\n",
+                    max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
         }
-        if max_difference < stop {
+        if new_max_dx < stop {
+            println!("Final values **************************");
+            println!("loop: counter = {} **************************",counter);
+            coordinates.print(PRECISION);
+            coordinate_differences.print(PRECISION);
+            print!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}\n",
+                            max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
             break;
         }
-        prev_scale = scale;
-        scale =  scale.min(max_difference * 0.01);
-        if counter % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
-            print!("prev_scale = {:.precision$}, scale = {:.precision$}, %diff = {:.precision$}\n",prev_scale, scale, 1. - scale/prev_scale, precision = PRECISION+2);
-        }
+        // prev_scale = scale;
+        // scale =  scale.min(new_max_dx * 0.01);
+        // if counter % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+        //     print!("prev_scale = {:.precision$}, scale = {:.precision$}, %diff = {:.precision$}\n",
+        //             prev_scale, scale, 1. - scale/prev_scale, precision = PRECISION+2);
+        // }
  
         coordinates = new_coordinates;
         coordinate_differences = new_coordinate_differences;
-        max_difference = new_max_difference;
+        max_dx = new_max_dx;
         counter += 1;
         if counter > 10_usize.pow(6) {
+            println!("Final values **************************");
+            println!("loop: counter = {} **************************",counter);
+            coordinates.print(PRECISION);
+            coordinate_differences.print(PRECISION);
+            print!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}\n",
+                            max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
             break;
         }
     }
-    // print!("\n\n{:?}",all_scales);
+    match now.elapsed() {
+        Ok(elapsed) => {
+            // it prints '2'
+            println!("Elpased time ={:0.3} ms", 1000.0 * elapsed.as_secs_f64());
+        }
+        Err(e) => {
+            // an error occurred!
+            println!("Error measuring the elapsed time: {:?}", e);
+        }
+    }
+
 }
