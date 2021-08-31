@@ -483,7 +483,7 @@ impl CoordinateDifferences{
     fn print(&self, precision: usize) {
 
         let field:usize = precision + 4; 
-        const FLOAT_FILTER: bool = true;
+        const FLOAT_FILTER: bool = false;
         const ANGLE_FILTER: f64 = 60.0;
         const EPS: f64 = 1e-6;
         let mut angle_filter_count: usize = 0;
