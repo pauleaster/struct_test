@@ -1,5 +1,5 @@
 use itertools::izip;
-use std::time::SystemTime;
+use std::time::{SystemTime, Instant};
 // #[macro_use] extern crate text_io; // used to pause 
 // use rand::prelude::*;
 use rand::distributions::{Distribution, Uniform};
@@ -9,6 +9,18 @@ use std::f64::consts::PI;
 
 const MAX_NUM : f64 = 1e6;
 const MIN_NUM : f64 = 0.0;
+
+static mut GLOB_CLONE_COORDINATE: f64 = 0.0;
+static mut GLOB_CLONE_COORDINATE_VECTOR: f64 = 0.0;
+static mut GLOB_CALC_MAG_COORDINATE: f64 = 0.0;
+static mut COORDINATE_NEW_COUNT: usize = 0;
+static mut COORDINATE_VECTOR_NEW_COUNT: usize = 0;
+static mut GLOB_NEW_COORDINATE: f64 = 0.0;
+static mut GLOB_NEW_COORDINATE_VECTOR: f64 = 0.0;
+static mut GLOB_NEW_COORDINATE_DIFFERENCES: f64 = 0.0;
+static mut GLOB_REPOSITION_COORDINATE_VECTOR: f64 = 0.0;
+
+
 
 
 fn float_equals(x: f64, y: f64, eps: f64) -> bool{
@@ -32,12 +44,18 @@ impl Coordinate {
 
     fn new(x : f64, y: f64, z: f64 ) -> Coordinate{
 
-        Coordinate {
-            x: x, 
-            y: y,
-            z: z,
+        let now = Instant::now();
+        unsafe{COORDINATE_NEW_COUNT += 1}
+        let result = Coordinate {
+            x, 
+            y,
+            z,
             mag : Coordinate::calc_mag(x,y,z),
+        };
+        unsafe{
+            GLOB_NEW_COORDINATE += now.elapsed().as_secs_f64();
         }
+        result
     }
 
 
@@ -97,21 +115,26 @@ impl Coordinate {
 
         
         Coordinate {
-            x: x,
-            y: y,
-            z: z,
-            mag :mag,
+            x,
+            y,
+            z,
+            mag,
         }
     }
 
     fn clone(&self) -> Coordinate {
+
+        let now = Instant::now();
         
         let x = self.x;
         let y = self.y;
         let z = self.z;
         let mag = self.mag;
 
-        
+        unsafe{
+            GLOB_CLONE_COORDINATE += now.elapsed().as_secs_f64();
+        }
+
         Coordinate {
             x,
             y,
@@ -132,9 +155,9 @@ impl Coordinate {
 
 
         Coordinate {
-            x: x,
-            y: y,
-            z: z ,
+            x,
+            y,
+            z,
             mag : Coordinate::calc_mag(x,y,z),
         }
         
@@ -147,9 +170,9 @@ impl Coordinate {
         let z:f64 = self.z - pt.z;
 
         Coordinate {
-            x: x,
-            y: y,
-            z: z ,
+            x,
+            y,
+            z,
             mag : Coordinate::calc_mag(x,y,z),
         }
         
@@ -158,10 +181,15 @@ impl Coordinate {
 
     fn calc_mag(x:f64,y:f64,z:f64) -> f64 {
 
-        (x.powi(2)  + y.powi(2) + z.powi(2)).sqrt()
+        let now = Instant::now();
+        
+        let result = (x.powi(2)  + y.powi(2) + z.powi(2)).sqrt();
+        unsafe{
+            GLOB_CALC_MAG_COORDINATE += now.elapsed().as_secs_f64();
+        };
+        result
     }
 
-  
     fn mult(&self, scale: f64) -> Coordinate {
 
         let x:f64 = scale * self.x;
@@ -169,9 +197,9 @@ impl Coordinate {
         let z:f64 = scale * self.z;
 
         Coordinate {
-            x: x,
-            y: y,
-            z: z ,
+            x,
+            y,
+            z,
             mag : Coordinate::calc_mag(x,y,z),
         }
 
@@ -257,12 +285,19 @@ impl CoordinateVector {
     
     fn new(data : Vec<Coordinate> ) -> CoordinateVector{
 
+        unsafe{COORDINATE_VECTOR_NEW_COUNT += 1};
+        let now = Instant::now();
 
-        CoordinateVector{
+        let result = CoordinateVector{
 
             size: data.len(),
             data : data, // note this should move data
+        };
+        unsafe{
+            GLOB_NEW_COORDINATE_VECTOR += now.elapsed().as_secs_f64();
         }
+        result
+
     }
 
     fn new_from_random_vertices(vertices: usize) -> CoordinateVector {
@@ -272,7 +307,7 @@ impl CoordinateVector {
         } else {
 
             let mut data : Vec<Coordinate> = Vec::new(); 
-            for vertex in 0..vertices{
+            for _ in 0..vertices{
                 data.push(Coordinate::new_random());
             }
             if data.len() != vertices{
@@ -297,11 +332,17 @@ impl CoordinateVector {
             // First the 0th vertex at z=1
             data.push(Coordinate::new_from_spherical_coordinates(1.0, 0.0 ,0.0 ));
             println!("({},{}): theta = {:0.6}, phi = {:0.6}", 0, 0, 0.0, 0.0);
-            println!(" length = {}",data.len());
+            let cx = &data[data.len()-1].x;
+            let cy = &data[data.len()-1].y;
+            let cz = &data[data.len()-1].z;
+            println!("({:0.6}, {:0.6}, {:0.6} )", cx, cy, cz);
             // Second the 1st vertex at x=1
             data.push(Coordinate::new_from_spherical_coordinates(1.0, 0.0 , PI/2.0 ));
             println!("({},{}): theta = {:0.6}, phi = {:0.6}", 0, 1, 0.0, PI/2.0);
-            println!(" length = {}",data.len());
+            let cx = &data[data.len()-1].x;
+            let cy = &data[data.len()-1].y;
+            let cz = &data[data.len()-1].z;
+            println!("({:0.6}, {:0.6}, {:0.6} )", cx, cy, cz);
             for itheta in 1..m + 1 { 
                 for iphi in 1..m + 1 {
                     let theta = (itheta as f64 )* dtheta;
@@ -344,10 +385,13 @@ impl CoordinateVector {
 
         let mut data:  Vec<Coordinate> = Vec::new();
 
-
+        let now = Instant::now();
 
         for coordinate in &self.data {
             data.push(coordinate.clone())
+        }
+        unsafe{
+            GLOB_CLONE_COORDINATE_VECTOR += now.elapsed().as_secs_f64();
         }
         return CoordinateVector::new(data);
     }
@@ -381,16 +425,62 @@ impl CoordinateVector {
 
     fn reposition (&self, differences: &CoordinateDifferences, scale:f64, counter: usize, number_of_cycles_between_print: usize) -> (CoordinateVector, f64) {
 
+        let now = Instant::now();
+
+
+
+
+
         
         let mut result = self.clone();
         let mut dx = self.zero();
         let mut dx_parallel = self.zero();
         for (idx1, idx2, delta_vector) in izip!(&differences.first_index,&differences.second_index,&differences.data){
-            dx.data[*idx1]  = dx.data[*idx1].add(&delta_vector.mult(delta_vector.mag.powi(-3) * scale)); // du_hat/|u|^2
-            dx.data[*idx2]  = dx.data[*idx2].add(&delta_vector.mult(-1.0 * delta_vector.mag.powi(-3) * scale));
+            if *idx1 == 0 {
+                dx.data[*idx1]= Coordinate::zero();
+            } else if *idx1 == 1 {
+                dx.data[*idx1]  = dx.data[*idx1].add(&delta_vector.mult(delta_vector.mag.powi(-3) * scale)).project_onto_xz();
+                if dx.data[*idx1].y.abs() > 1e-3 {
+                    println!("The y component of the 1st vector is not zero, the vector is :");
+                    dx.data[*idx1].print(' ', 3);
+                    panic!();
+                }
+            } else {
+                dx.data[*idx1]  = dx.data[*idx1].add(&delta_vector.mult(delta_vector.mag.powi(-3) * scale)); // du_hat/|u|^2
+            }
+            
+            if *idx2 == 0 {
+                dx.data[*idx2]= Coordinate::zero();
+            } else if *idx2 == 1 {
+                dx.data[*idx2]  = dx.data[*idx2].add(&delta_vector.mult(-1.0 * delta_vector.mag.powi(-3) * scale)).project_onto_xz();
+                if dx.data[*idx2].y.abs() > 1e-3 {
+                    println!("The y component of the 1st dx vector is not zero, dx = ");
+                    dx.data[*idx2].print('\n', 3);
+                    panic!();
+                }
+            } else {
+                dx.data[*idx2]  = dx.data[*idx2].add(&delta_vector.mult(-1.0 * delta_vector.mag.powi(-3) * scale)); // du_hat/|u|^2
+            }
         }
         for (idx, dx_val) in dx.data.iter().enumerate() {
             dx_parallel.data[idx] = dx_val.sub(&result.data[idx].mult(dx_val.dot(&result.data[idx])));
+            if idx == 1 {
+                if result.data[idx].y.abs() > 1e-3 {
+                    println!("1st vector is not on xz plane, v = ");
+                    result.data[idx].print('\n', 3);
+                    panic!();
+                }
+                if dx_parallel.data[idx].y.abs() > 1e-3 {
+                    println!("dx parallel of the 1st vector is not on xz plane, dx_para = ");
+                    dx_parallel.data[idx].print('\n', 3);
+                    panic!();
+                }
+                if result.data[idx].add(&dx_parallel.data[idx]).make_unit_vector().y.abs() > 1e-3 {
+                    println!("adjusted 1st vector is not on xz plane, dx_para = ");
+                    result.data[idx].add(&dx_parallel.data[idx]).make_unit_vector().print('\n', 3);
+                    panic!();
+                }
+            }
             result.data[idx] = result.data[idx].add(&dx_parallel.data[idx]).make_unit_vector();
         }
         // if counter % number_of_cycles_between_print == 0 { 
@@ -399,12 +489,15 @@ impl CoordinateVector {
         //     println!("dx_parallel.max_mag()={}", dx_parallel.max_mag());
         //     println!("***************** dx *********************");
         // }
-         return (result, dx_parallel.max_mag());
+        unsafe{
+            GLOB_REPOSITION_COORDINATE_VECTOR += now.elapsed().as_secs_f64();
+        }
+        return (result, dx_parallel.max_mag());
     }
     
 }
 
-struct swap_result {
+struct SwapResult {
     edge1: Vec<f64>,
     edge2: Vec<f64>,
     swapped: bool,
@@ -422,11 +515,13 @@ struct CoordinateDifferences {
     edge_dots : Vec<Vec<f64>>,
 }
 
+// This is using up all the time!!!!!!!!!
 impl CoordinateDifferences{
     
     fn new(coordinates: &CoordinateVector) -> CoordinateDifferences {
 
         
+        let now = Instant::now();
         let mut data : Vec<Coordinate> = Vec::new();
         let mut first_idx : Vec <usize>  = Vec::new();
         let mut second_idx : Vec <usize> = Vec::new();
@@ -472,18 +567,23 @@ impl CoordinateDifferences{
         let edge_dots = CoordinateDifferences::get_edge_dots(&first_idx,&second_idx,&data);
 
 
-        CoordinateDifferences{
+        let result = CoordinateDifferences{
 
             size: data.len(),
-            data : data,
+            data,
             first_index : first_idx,
             second_index : second_idx,
-            mean_magnitude : mean_magnitude,
+            mean_magnitude,
             magnitude_range : mag_range,
-            signs : signs,
+            signs,
             dots : dot_products,
-            edge_dots : edge_dots,
+            edge_dots,
+        };
+        unsafe{
+            GLOB_NEW_COORDINATE_DIFFERENCES += now.elapsed().as_secs_f64();
         }
+
+        result
 
     }
 
@@ -531,19 +631,19 @@ impl CoordinateDifferences{
         return edge.iter().map(|x| *x).collect()
     }
 
-    fn order_edges( first_edge: & Vec<f64> ,  second_edge: & Vec<f64>) -> swap_result {
+    fn order_edges( first_edge: & Vec<f64> ,  second_edge: & Vec<f64>) -> SwapResult {
         if first_edge[0] < second_edge[0] { 
-            return swap_result{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+            return SwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
         } else if first_edge[0] > second_edge[0] {
-            return swap_result{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+            return SwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
         } else if first_edge[1] < second_edge[1] {
-            return swap_result{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+            return SwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
         } else if first_edge[1] > second_edge[1] {
-            return swap_result{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+            return SwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
         } else if first_edge[2] < second_edge[2] {
-            return swap_result{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+            return SwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
         } else {
-            return swap_result{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+            return SwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
         }
     }
 
@@ -614,6 +714,7 @@ impl CoordinateDifferences{
 
 
 fn main() {
+    
 
     // Tetrahedron, d4: 4 vertices, 4 faces
     // Cube, d6: 8 vertices, 6 faces
@@ -622,9 +723,9 @@ fn main() {
     // Dodecahedron: d12 20 vertices, 12 faces
     // Icosahedron: d20 12 vertices, 20 faces
 
-    const NUMBER_OF_VERTICES:usize = 5;
+    const NUMBER_OF_VERTICES:usize = 12;
 
-    let now = SystemTime::now();
+    let now = Instant::now();
     const SCALE : f64 =  0.1;
     const STOP_POWER : i32 = 10;
     let stop = 10_f64.powi(-STOP_POWER);
@@ -650,19 +751,32 @@ fn main() {
     let mut max_dx:f64 = 1e6;
     let new_max_dx:f64 = 1e6;
     let mut counter: usize = 0;
+    let mut count_a: f64 = 0.0;
+    let mut count_b: f64 = 0.0;
+    let mut count_c: f64 = 0.0;
+    let mut count_d: f64 = 0.0;
     // let mut prev_max_distance: f64 = 1000.0;
     println!("Initial values **************************");
     coordinates.print(PRECISION);
     let mut coordinate_differences = CoordinateDifferences::new(&coordinates);
     coordinate_differences.print(PRECISION);
     loop {
-        
+        let cum_count = now.elapsed().as_secs_f64();
+
         let (new_coordinates, new_max_dx) = coordinates.reposition(&coordinate_differences, scale, counter, NUMBER_OF_CYCLES_BETWEEN_PRINT);
         if counter + 1 % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
             println!("loop: counter = {} **************************",counter);
             new_coordinates.print(PRECISION);
         }
+
+        let cum_count2 = now.elapsed().as_secs_f64();
+        count_a += cum_count2 - cum_count;
+
         let new_coordinate_differences = CoordinateDifferences::new(&new_coordinates);
+        
+        let cum_count = now.elapsed().as_secs_f64();
+        count_b += cum_count - cum_count2;
+
         if counter + 1 % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
             new_coordinate_differences.print(PRECISION);
         }
@@ -672,7 +786,7 @@ fn main() {
                     max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
         }
         if new_max_dx < stop {
-            println!("Final values **************************");
+            println!("Final values dx stop **************************");
             println!("loop: counter = {} **************************",counter);
             coordinates.print(PRECISION);
             coordinate_differences.print(PRECISION);
@@ -687,12 +801,18 @@ fn main() {
         //             prev_scale, scale, 1. - scale/prev_scale, precision = PRECISION+2);
         // }
  
+        
         coordinates = new_coordinates;
         coordinate_differences = new_coordinate_differences;
         max_dx = new_max_dx;
         counter += 1;
+
+
+        let cum_count2 = now.elapsed().as_secs_f64();
+        count_c += cum_count2 - cum_count;
+
         if counter > 10_usize.pow(6) {
-            println!("Final values **************************");
+            println!("Final values large count stop **************************");
             println!("loop: counter = {} **************************",counter);
             coordinates.print(PRECISION);
             coordinate_differences.print(PRECISION);
@@ -701,15 +821,24 @@ fn main() {
             break;
         }
     }
-    match now.elapsed() {
-        Ok(elapsed) => {
-            // it prints '2'
-            println!("Elpased time ={:0.3} ms", 1000.0 * elapsed.as_secs_f64());
-        }
-        Err(e) => {
-            // an error occurred!
-            println!("Error measuring the elapsed time: {:?}", e);
-        }
+
+    println!("Elpased time ={:0.3} ms", 1000.0 * now.elapsed().as_secs_f64());
+    println!("Number of loops = {}", counter);
+
+    unsafe{
+        println!("Time in Coordinate.clone() = {:0.6} ms", 1000.0 * GLOB_CLONE_COORDINATE);
+        println!("Time in CoordinateVector.calc_mag() = {:0.6} ms", 1000.0 * GLOB_CALC_MAG_COORDINATE);
+        println!("Time in CoordinateVector.clone() = {:0.6} ms", 1000.0 * GLOB_CLONE_COORDINATE_VECTOR);
+        println!("Coordinate.new() count = {}",COORDINATE_NEW_COUNT);
+        println!("CoordinateVector.new() count = {}",COORDINATE_VECTOR_NEW_COUNT);
+        println!("Time in Coordinate.new() = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE);
+        println!("Time in CoordinateVector.new() = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_VECTOR);
+        println!("Time in CoordinateVector.reposition() = {:0.6} ms", 1000.0 * GLOB_REPOSITION_COORDINATE_VECTOR);
+        println!("Time in count_a = {:0.6} ms", 1000.0 * count_a);
+        println!("Time in count_b = {:0.6} ms", 1000.0 * count_b);
+        println!("Time in count_c = {:0.6} ms", 1000.0 * count_c);
+        println!("Time in CoordinateDifferences.new() = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES);
+        
     }
 
 }
