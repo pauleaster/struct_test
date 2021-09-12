@@ -10,20 +10,18 @@ use std::f64::consts::PI;
 const MAX_NUM : f64 = 1e6;
 const MIN_NUM : f64 = 0.0;
 
-static mut GLOB_CLONE_COORDINATE: f64 = 0.0;
-static mut GLOB_CLONE_COORDINATE_VECTOR: f64 = 0.0;
-static mut GLOB_CALC_MAG_COORDINATE: f64 = 0.0;
-static mut COORDINATE_NEW_COUNT: usize = 0;
-static mut COORDINATE_VECTOR_NEW_COUNT: usize = 0;
-static mut GLOB_NEW_COORDINATE: f64 = 0.0;
-static mut GLOB_NEW_COORDINATE_VECTOR: f64 = 0.0;
+// static mut GLOB_CLONE_COORDINATE: f64 = 0.0;
+// static mut GLOB_CLONE_COORDINATE_VECTOR: f64 = 0.0;
+// static mut GLOB_CALC_MAG_COORDINATE: f64 = 0.0;
+// static mut COORDINATE_NEW_COUNT: usize = 0;
+// static mut COORDINATE_VECTOR_NEW_COUNT: usize = 0;
+// static mut GLOB_NEW_COORDINATE: f64 = 0.0;
+// static mut GLOB_NEW_COORDINATE_VECTOR: f64 = 0.0;
 static mut GLOB_NEW_COORDINATE_DIFFERENCES: f64 = 0.0;
-static mut GLOB_REPOSITION_COORDINATE_VECTOR: f64 = 0.0;
+// static mut GLOB_REPOSITION_COORDINATE_VECTOR: f64 = 0.0;
 static mut GLOB_NEW_COORDINATE_DIFFERENCES_LOOP_ONLY: f64 = 0.0;
 static mut GLOB_NEW_COORDINATE_DIFFERENCES_MIN_MAX_ONLY: f64 = 0.0;
-static mut GLOB_NEW_COORDINATE_DIFFERENCES_EDGE_DOTS_ONLY: f64 = 0.0;
-
-
+// static mut GLOB_NEW_COORDINATE_DIFFERENCES_EDGE_DOTS_ONLY: f64 = 0.0;
 
 
 fn float_equals(x: f64, y: f64, eps: f64) -> bool{
@@ -47,17 +45,13 @@ impl Coordinate {
 
     fn new(x : f64, y: f64, z: f64 ) -> Coordinate{
 
-        let now = Instant::now();
-        unsafe{COORDINATE_NEW_COUNT += 1}
         let result = Coordinate {
             x, 
             y,
             z,
             mag : Coordinate::calc_mag(x,y,z),
         };
-        unsafe{
-            GLOB_NEW_COORDINATE += now.elapsed().as_secs_f64();
-        }
+
         result
     }
 
@@ -126,17 +120,11 @@ impl Coordinate {
     }
 
     fn clone(&self) -> Coordinate {
-
-        let now = Instant::now();
         
         let x = self.x;
         let y = self.y;
         let z = self.z;
         let mag = self.mag;
-
-        unsafe{
-            GLOB_CLONE_COORDINATE += now.elapsed().as_secs_f64();
-        }
 
         Coordinate {
             x,
@@ -183,13 +171,9 @@ impl Coordinate {
 
 
     fn calc_mag(x:f64,y:f64,z:f64) -> f64 {
-
-        let now = Instant::now();
         
         let result = (x.powi(2)  + y.powi(2) + z.powi(2)).sqrt();
-        unsafe{
-            GLOB_CALC_MAG_COORDINATE += now.elapsed().as_secs_f64();
-        };
+
         result
     }
 
@@ -288,19 +272,12 @@ impl CoordinateVector {
     
     fn new(data : Vec<Coordinate> ) -> CoordinateVector{
 
-        unsafe{COORDINATE_VECTOR_NEW_COUNT += 1};
-        let now = Instant::now();
-
         let result = CoordinateVector{
 
             size: data.len(),
             data : data, // note this should move data
         };
-        unsafe{
-            GLOB_NEW_COORDINATE_VECTOR += now.elapsed().as_secs_f64();
-        }
         result
-
     }
 
     fn new_from_random_vertices(vertices: usize) -> CoordinateVector {
@@ -388,13 +365,8 @@ impl CoordinateVector {
 
         let mut data:  Vec<Coordinate> = Vec::new();
 
-        let now = Instant::now();
-
         for coordinate in &self.data {
             data.push(coordinate.clone())
-        }
-        unsafe{
-            GLOB_CLONE_COORDINATE_VECTOR += now.elapsed().as_secs_f64();
         }
         return CoordinateVector::new(data);
     }
@@ -428,13 +400,6 @@ impl CoordinateVector {
 
     fn reposition (&self, differences: &CoordinateDifferences, scale:f64, counter: usize, number_of_cycles_between_print: usize) -> (CoordinateVector, f64) {
 
-        let now = Instant::now();
-
-
-
-
-
-        
         let mut result = self.clone();
         let mut dx = self.zero();
         let mut dx_parallel = self.zero();
@@ -492,9 +457,6 @@ impl CoordinateVector {
         //     println!("dx_parallel.max_mag()={}", dx_parallel.max_mag());
         //     println!("***************** dx *********************");
         // }
-        unsafe{
-            GLOB_REPOSITION_COORDINATE_VECTOR += now.elapsed().as_secs_f64();
-        }
         return (result, dx_parallel.max_mag());
     }
     
@@ -515,7 +477,6 @@ struct CoordinateDifferences {
     magnitude_range : f64,
     signs: Vec <f64>,
     dots : Vec <f64>,
-    // edge_dots : Vec<Vec<f64>>,
 }
 
 // This is using up all the time!!!!!!!!!
@@ -523,7 +484,6 @@ impl CoordinateDifferences{
     
     fn new(coordinates: &CoordinateVector) -> CoordinateDifferences {
 
-        
         let now = Instant::now();
         let mut data : Vec<Coordinate> = Vec::new();
         let mut first_idx : Vec <usize>  = Vec::new();
@@ -531,6 +491,7 @@ impl CoordinateDifferences{
         let mut mags : Vec <f64> = Vec::new();
         let mut dot_products : Vec <f64> = Vec::new();
         let mut mag_sum = 0_f64;
+
         let loop_start_time = now.elapsed().as_secs_f64();
         for (idx1, coordinate_1) in coordinates.data[0..coordinates.size-1].iter().enumerate() {
             for (idx2, coordinate_2) in coordinates.data[idx1+1..coordinates.size].iter().enumerate(){
@@ -572,14 +533,10 @@ impl CoordinateDifferences{
         }
 
         let mag_range = max_val - min_val;
+
         unsafe{
             GLOB_NEW_COORDINATE_DIFFERENCES_MIN_MAX_ONLY += now.elapsed().as_secs_f64() - min_max_start_time;
         }
-        // let edge_dots_start_time = now.elapsed().as_secs_f64();
-        // let edge_dots = CoordinateDifferences::get_edge_dots(&first_idx,&second_idx,&data);
-        // unsafe{
-        //     GLOB_NEW_COORDINATE_DIFFERENCES_EDGE_DOTS_ONLY += now.elapsed().as_secs_f64() - edge_dots_start_time;
-        // }
 
         let result = CoordinateDifferences{
 
@@ -591,14 +548,12 @@ impl CoordinateDifferences{
             magnitude_range : mag_range,
             signs,
             dots : dot_products,
-            // edge_dots,
         };
+        
         unsafe{
             GLOB_NEW_COORDINATE_DIFFERENCES += now.elapsed().as_secs_f64();
         }
-
         result
-
     }
 
     fn print(&self, precision: usize) {
@@ -737,7 +692,7 @@ fn main() {
     // Dodecahedron: d12 20 vertices, 12 faces
     // Icosahedron: d20 12 vertices, 20 faces
 
-    const NUMBER_OF_VERTICES:usize = 12;
+    const NUMBER_OF_VERTICES:usize = 20;
 
     let now = Instant::now();
     const SCALE : f64 =  0.1;
@@ -763,57 +718,78 @@ fn main() {
 
     let  scale = SCALE;
     let mut max_dx:f64 = 1e6;
-    let new_max_dx:f64 = 1e6;
+    // let new_max_dx:f64 = 1e6;
     let mut counter: usize = 0;
     let mut count_a: f64 = 0.0;
     let mut count_b: f64 = 0.0;
     let mut count_c: f64 = 0.0;
-    let mut count_d: f64 = 0.0;
+    // let mut count_d: f64 = 0.0;
+    let mut timing_inluding_prints: f64 = 0.0;
+    let mut timing_exluding_prints: f64 = 0.0;
+    let mut print_timer: f64 = 0.0;
     // let mut prev_max_distance: f64 = 1000.0;
+    let print_sub_timer = now.elapsed().as_secs_f64();
     println!("Initial values **************************");
     coordinates.print(PRECISION);
+    print_timer += now.elapsed().as_secs_f64() - print_sub_timer;
+
     let mut coordinate_differences = CoordinateDifferences::new(&coordinates);
+
+    let print_sub_timer = now.elapsed().as_secs_f64();
     coordinate_differences.print(PRECISION);
+    print_timer += now.elapsed().as_secs_f64() - print_sub_timer;
     loop {
         let cum_count = now.elapsed().as_secs_f64();
-
+        // *************** Start of count_a section ****************
         let (new_coordinates, new_max_dx) = coordinates.reposition(&coordinate_differences, scale, counter, NUMBER_OF_CYCLES_BETWEEN_PRINT);
         if counter + 1 % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+            let print_sub_timer = now.elapsed().as_secs_f64();
             println!("loop: counter = {} **************************",counter);
             new_coordinates.print(PRECISION);
+            print_timer += now.elapsed().as_secs_f64() - print_sub_timer;
         }
 
         let cum_count2 = now.elapsed().as_secs_f64();
         count_a += cum_count2 - cum_count;
+        // *************** End of count_a section ****************
+
+        // *************** Start of count_b section ****************
 
         let new_coordinate_differences = CoordinateDifferences::new(&new_coordinates);
         
         let cum_count = now.elapsed().as_secs_f64();
         count_b += cum_count - cum_count2;
 
+        // *************** End of count_b section ****************
+
+        // *************** Start of count_c section ****************
+
         if counter + 1 % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+            let print_sub_timer = now.elapsed().as_secs_f64();
             new_coordinate_differences.print(PRECISION);
+            print_timer += now.elapsed().as_secs_f64() - print_sub_timer;
         }
 
         if counter + 1 % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
+            let print_sub_timer = now.elapsed().as_secs_f64();
             print!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}\n",
                     max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
+            print_timer += now.elapsed().as_secs_f64() - print_sub_timer;
         }
         if new_max_dx < stop {
+            let print_sub_timer = now.elapsed().as_secs_f64();
+            let elapsed_time_excluding_output = now.elapsed().as_secs_f64();
             println!("Final values dx stop **************************");
             println!("loop: counter = {} **************************",counter);
             coordinates.print(PRECISION);
             coordinate_differences.print(PRECISION);
             print!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}\n",
                             max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
+            println!("Elpased time including final output ={:0.3} ms", 1000.0 * now.elapsed().as_secs_f64());
+            println!("Elpased time excluding final output ={:0.3} ms", 1000.0 * elapsed_time_excluding_output);
+            print_timer += now.elapsed().as_secs_f64() - print_sub_timer;
             break;
         }
-        // prev_scale = scale;
-        // scale =  scale.min(new_max_dx * 0.01);
-        // if counter % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
-        //     print!("prev_scale = {:.precision$}, scale = {:.precision$}, %diff = {:.precision$}\n",
-        //             prev_scale, scale, 1. - scale/prev_scale, precision = PRECISION+2);
-        // }
  
         
         coordinates = new_coordinates;
@@ -825,38 +801,36 @@ fn main() {
         let cum_count2 = now.elapsed().as_secs_f64();
         count_c += cum_count2 - cum_count;
 
+        // *************** End of count_c section ****************
+
         if counter > 10_usize.pow(6) {
+            let print_sub_timer = now.elapsed().as_secs_f64();
             println!("Final values large count stop **************************");
             println!("loop: counter = {} **************************",counter);
             coordinates.print(PRECISION);
             coordinate_differences.print(PRECISION);
             print!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}\n",
                             max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
+            println!("Elpased time ={:0.3} ms", 1000.0 * now.elapsed().as_secs_f64());
+            print_timer += now.elapsed().as_secs_f64() - print_sub_timer;
             break;
         }
     }
 
-    println!("Elpased time ={:0.3} ms", 1000.0 * now.elapsed().as_secs_f64());
+    let print_sub_timer = now.elapsed().as_secs_f64();
     println!("Number of loops = {}", counter);
 
+    println!("Time in count_a = {:0.6} ms", 1000.0 * count_a);
+    println!("Time in count_b = {:0.6} ms", 1000.0 * count_b);
+    println!("Time in count_c = {:0.6} ms", 1000.0 * count_c);
     unsafe{
-        println!("Time in Coordinate.clone() = {:0.6} ms", 1000.0 * GLOB_CLONE_COORDINATE);
-        println!("Time in CoordinateVector.calc_mag() = {:0.6} ms", 1000.0 * GLOB_CALC_MAG_COORDINATE);
-        println!("Time in CoordinateVector.clone() = {:0.6} ms", 1000.0 * GLOB_CLONE_COORDINATE_VECTOR);
-        println!("Coordinate.new() count = {}",COORDINATE_NEW_COUNT);
-        println!("CoordinateVector.new() count = {}",COORDINATE_VECTOR_NEW_COUNT);
-        println!("Time in Coordinate.new() = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE);
-        println!("Time in CoordinateVector.new() = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_VECTOR);
-        println!("Time in CoordinateVector.reposition() = {:0.6} ms", 1000.0 * GLOB_REPOSITION_COORDINATE_VECTOR);
-        println!("Time in count_a = {:0.6} ms", 1000.0 * count_a);
-        println!("Time in count_b = {:0.6} ms", 1000.0 * count_b);
-        println!("Time in count_c = {:0.6} ms", 1000.0 * count_c);
         println!("Time in CoordinateDifferences.new() = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES);
-        
         println!("Time in CoordinateDifferences.new(), loop only = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES_LOOP_ONLY);
         println!("Time in CoordinateDifferences.new(), min max only = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES_MIN_MAX_ONLY);
-        println!("Time in CoordinateDifferences.new(), edge dots only = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES_EDGE_DOTS_ONLY);
-        
     }
+    let final_time = now.elapsed().as_secs_f64();
+    print_timer += final_time - print_sub_timer;
+    println!("Time spent printing to screen = {:0.6} ms", print_timer * 1000.0);
+    println!("Time not printing to screen = {:0.6} ms", (final_time - print_timer) * 1000.0);
 
 }
