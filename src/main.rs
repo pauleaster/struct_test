@@ -19,6 +19,9 @@ static mut GLOB_NEW_COORDINATE: f64 = 0.0;
 static mut GLOB_NEW_COORDINATE_VECTOR: f64 = 0.0;
 static mut GLOB_NEW_COORDINATE_DIFFERENCES: f64 = 0.0;
 static mut GLOB_REPOSITION_COORDINATE_VECTOR: f64 = 0.0;
+static mut GLOB_NEW_COORDINATE_DIFFERENCES_LOOP_ONLY: f64 = 0.0;
+static mut GLOB_NEW_COORDINATE_DIFFERENCES_MIN_MAX_ONLY: f64 = 0.0;
+static mut GLOB_NEW_COORDINATE_DIFFERENCES_EDGE_DOTS_ONLY: f64 = 0.0;
 
 
 
@@ -512,7 +515,7 @@ struct CoordinateDifferences {
     magnitude_range : f64,
     signs: Vec <f64>,
     dots : Vec <f64>,
-    edge_dots : Vec<Vec<f64>>,
+    // edge_dots : Vec<Vec<f64>>,
 }
 
 // This is using up all the time!!!!!!!!!
@@ -528,6 +531,7 @@ impl CoordinateDifferences{
         let mut mags : Vec <f64> = Vec::new();
         let mut dot_products : Vec <f64> = Vec::new();
         let mut mag_sum = 0_f64;
+        let loop_start_time = now.elapsed().as_secs_f64();
         for (idx1, coordinate_1) in coordinates.data[0..coordinates.size-1].iter().enumerate() {
             for (idx2, coordinate_2) in coordinates.data[idx1+1..coordinates.size].iter().enumerate(){
                 first_idx.push(idx1);
@@ -539,12 +543,16 @@ impl CoordinateDifferences{
                 dot_products.push(coordinate_1.dot(coordinate_2));
             }
         }
+        unsafe{
+            GLOB_NEW_COORDINATE_DIFFERENCES_LOOP_ONLY += now.elapsed().as_secs_f64() - loop_start_time;
+        }
+
+        let min_max_start_time = now.elapsed().as_secs_f64();
         let mean_magnitude = mag_sum  / (data.len() as f64);
         let delta_mags : Vec <f64> = mags.iter().map(|&x| x - mean_magnitude).collect(); //::<Vec<f64>>();
         let signs : Vec <f64> = mags.iter().map(|&x| (x - mean_magnitude)/(x - mean_magnitude).abs()).collect(); 
         let mut min_val : f64 = MAX_NUM;
         let mut max_val : f64 = MIN_NUM;
-
 
         for value in delta_mags.iter(){
             match *value < min_val { 
@@ -564,8 +572,14 @@ impl CoordinateDifferences{
         }
 
         let mag_range = max_val - min_val;
-        let edge_dots = CoordinateDifferences::get_edge_dots(&first_idx,&second_idx,&data);
-
+        unsafe{
+            GLOB_NEW_COORDINATE_DIFFERENCES_MIN_MAX_ONLY += now.elapsed().as_secs_f64() - min_max_start_time;
+        }
+        // let edge_dots_start_time = now.elapsed().as_secs_f64();
+        // let edge_dots = CoordinateDifferences::get_edge_dots(&first_idx,&second_idx,&data);
+        // unsafe{
+        //     GLOB_NEW_COORDINATE_DIFFERENCES_EDGE_DOTS_ONLY += now.elapsed().as_secs_f64() - edge_dots_start_time;
+        // }
 
         let result = CoordinateDifferences{
 
@@ -577,7 +591,7 @@ impl CoordinateDifferences{
             magnitude_range : mag_range,
             signs,
             dots : dot_products,
-            edge_dots,
+            // edge_dots,
         };
         unsafe{
             GLOB_NEW_COORDINATE_DIFFERENCES += now.elapsed().as_secs_f64();
@@ -596,20 +610,20 @@ impl CoordinateDifferences{
         let mut angle_filter_count: usize = 0;
 
         
-
+        
         println!("Length = {:3}",self.size);
         println!("E(|x|) = {:field$.precision$}",&self.mean_magnitude, precision=precision, field=field);
         for (idx1, idx2, coordinate, dot, sign) in izip!(&self.first_index, &self.second_index, &self.data, &self.dots, &self.signs) {
             print!("({:3}, {:3}): ",idx1,idx2);
             coordinate.print(',',precision);
-            print!(" Sign = [{:+.0}]",
-                                                        sign);
+            print!(" Sign = [{:+.0}]",sign);
             println!(" <a.b> = {:field$.precision$}",dot, field=field, precision=precision);
         }
         if FLOAT_FILTER {
             println!("Vertices filtered by angle to {}",ANGLE_FILTER);
         }
-        for edge_vec in self.edge_dots.iter() {
+        let edge_dots = CoordinateDifferences::get_edge_dots(&self.first_index,&self.second_index,&self.data);
+        for edge_vec in edge_dots.iter() {
             if ! FLOAT_FILTER{
                 println!("<( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}",edge_vec[0],edge_vec[1],edge_vec[2],edge_vec[3],edge_vec[4], field=field, precision=precision,angle_precision = precision-2);
             } else {
@@ -838,6 +852,10 @@ fn main() {
         println!("Time in count_b = {:0.6} ms", 1000.0 * count_b);
         println!("Time in count_c = {:0.6} ms", 1000.0 * count_c);
         println!("Time in CoordinateDifferences.new() = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES);
+        
+        println!("Time in CoordinateDifferences.new(), loop only = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES_LOOP_ONLY);
+        println!("Time in CoordinateDifferences.new(), min max only = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES_MIN_MAX_ONLY);
+        println!("Time in CoordinateDifferences.new(), edge dots only = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES_EDGE_DOTS_ONLY);
         
     }
 
