@@ -1,0 +1,16 @@
+For 12 vertices:
+
+Elpased time =14881.713 ms
+Number of loops = 962
+Time in Coordinate.clone() = 0.906479 ms
+Time in CoordinateVector.calc_mag() = 11.396475 ms
+Time in CoordinateVector.clone() = 5.334136 ms
+Coordinate.new() count = 33705
+CoordinateVector.new() count = 3853
+Time in Coordinate.new() = 3.037512 ms
+Time in CoordinateVector.new() = 0.075392 ms
+Time in CoordinateVector.reposition() = 31.167788 ms
+Time in count_a = 32.987807 ms
+Time in count_b = 14745.300929 ms
+Time in count_c = 47.041164 ms
+Time in CoordinateDifferences.new() = 14762.543794 ms
