@@ -1,0 +1,19 @@
+For 12 indices, corrected by taking get_edge_dots out of the main loop. This is called up in the final print only
+
+Elpased time =50.442 ms
+Number of loops = 962
+Time in Coordinate.clone() = 0.971959 ms
+Time in CoordinateVector.calc_mag() = 7.907102 ms
+Time in CoordinateVector.clone() = 5.297705 ms
+Coordinate.new() count = 33705
+CoordinateVector.new() count = 3853
+Time in Coordinate.new() = 3.314283 ms
+Time in CoordinateVector.new() = 0.080317 ms
+Time in CoordinateVector.reposition() = 32.722869 ms
+Time in count_a = 34.673518 ms
+Time in count_b = 11.944190 ms
+Time in count_c = 0.566288 ms
+Time in CoordinateDifferences.new() = 11.744325 ms
+Time in CoordinateDifferences.new(), loop only = 11.239290 ms
+Time in CoordinateDifferences.new(), min max only = 0.368617 ms
+Time in CoordinateDifferences.new(), edge dots only = 0.000000 ms
