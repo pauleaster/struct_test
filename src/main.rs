@@ -1,11 +1,13 @@
 use itertools::izip;
-use std::time::{SystemTime, Instant};
+use std::time::Instant;
 // #[macro_use] extern crate text_io; // used to pause 
 // use rand::prelude::*;
 use rand::distributions::{Distribution, Uniform};
 // use rand::SeedableRng;
 // use rand::rngs::StdRng;
 use std::f64::consts::PI;
+use std::env;
+use std::process::exit as exit;
 
 const MAX_NUM : f64 = 1e6;
 const MIN_NUM : f64 = 0.0;
@@ -403,6 +405,8 @@ impl CoordinateVector {
         let mut result = self.clone();
         let mut dx = self.zero();
         let mut dx_parallel = self.zero();
+        let mut true_dx = self.zero();
+        let mut new_result = self.zero();
         for (idx1, idx2, delta_vector) in izip!(&differences.first_index,&differences.second_index,&differences.data){
             if *idx1 == 0 {
                 dx.data[*idx1]= Coordinate::zero();
@@ -449,7 +453,8 @@ impl CoordinateVector {
                     panic!();
                 }
             }
-            result.data[idx] = result.data[idx].add(&dx_parallel.data[idx]).make_unit_vector();
+            new_result.data[idx] = result.data[idx].add(&dx_parallel.data[idx]).make_unit_vector();
+            true_dx.data[idx] = new_result.data[idx].sub(&result.data[idx]);
         }
         // if counter % number_of_cycles_between_print == 0 { 
         //     println!("***************** dx_parallel *********************");
@@ -457,7 +462,7 @@ impl CoordinateVector {
         //     println!("dx_parallel.max_mag()={}", dx_parallel.max_mag());
         //     println!("***************** dx *********************");
         // }
-        return (result, dx_parallel.max_mag());
+        return (new_result, true_dx.max_mag());
     }
     
 }
@@ -684,15 +689,37 @@ impl CoordinateDifferences{
 
 fn main() {
     
-
+    // Triangle, d3: 3 vertices, 1 face
     // Tetrahedron, d4: 4 vertices, 4 faces
-    // Cube, d6: 8 vertices, 6 faces
-    // Equilateral octohedron, d8: 6 vertices, 8 faces
+    // Triangular bipyramid, d6 (not a cube): 5 vertices, 6 faces (at least with these initial values. This is not the only stable state.)
+    // Equilateral octohedron, Square bipyramid, d8: 6 vertices (at each of the three axes)
     // Pentagonal bipyramid, d10: 7 vertices, 10 faces
+    // Cube, d6: 8 vertices, 6 faces
+
+
     // Dodecahedron: d12 20 vertices, 12 faces
     // Icosahedron: d20 12 vertices, 20 faces
+    let args: Vec<String> = env::args().collect();
 
-    const NUMBER_OF_VERTICES:usize = 20;
+    if args.len() <= 1 {
+        println!("One argument is needed to specify the number of vertices which must be larger or equal to 3.");
+        exit(1);
+    }
+    let number_of_vertices: usize = match args[1].parse() {
+        Ok(num) => { 
+            if num < 3 {
+                println!("The number of vertices must be larger than or equal to 3.");
+                exit(1);
+            } else {
+                num
+            }
+        },
+        Err(e) => {
+            println!("The first argument must be the number of vertices and must be larger than or equal to 3.");
+            exit(1)
+        }
+    };
+    
 
     let now = Instant::now();
     const SCALE : f64 =  0.1;
@@ -705,9 +732,9 @@ fn main() {
 
     // let data = vec![x1,x2,x3,x4,x5,x6];
     if USE_RANDOM_VERTICES {
-        coordinates = CoordinateVector::new_from_random_vertices(NUMBER_OF_VERTICES);
+        coordinates = CoordinateVector::new_from_random_vertices(number_of_vertices);
     } else {
-        coordinates = CoordinateVector::new_from_fixed_sequence(NUMBER_OF_VERTICES);
+        coordinates = CoordinateVector::new_from_fixed_sequence(number_of_vertices);
     }
     
     
