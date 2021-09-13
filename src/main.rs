@@ -259,6 +259,33 @@ impl Coordinate {
         self.unit_dot(pt).acos() * 180.0 / PI 
     }
 
+    fn calculate_2d_determinant(a: &Coordinate, b: &Coordinate) -> f64 {
+        // This function calculates the 2x2 determinant of vector a and b by
+        // ignoring the z components.
+        // If the z components are non-zero then the output is meaningless.
+        if ! float_equals(a.z, 0.0, 1e-6) | ! float_equals(b.z, 0.0, 1e-6) {
+            panic!("2D determinant called with non zero z values, a.z = {:0.8}, b.z = {:0.8}", a.z,b.z);
+        }
+        else {
+            return a.x * b.y - a.y * b.x;
+        }
+    }
+
+    fn calculate_determinant(a:&Coordinate, b:&Coordinate, c:&Coordinate) -> f64 {
+        
+        let mut a2d:Coordinate = a.clone();
+        let mut b2d:Coordinate = b.clone();
+        let mut c2d:Coordinate = c.clone();
+
+        a2d.z = 0.0;
+        b2d.z = 0.0;
+        c2d.z = 0.0;
+
+        return a.z * Coordinate::calculate_2d_determinant(&b2d, &c2d) 
+            - b.z * Coordinate::calculate_2d_determinant(&a2d, &c2d) 
+            + c.z * Coordinate::calculate_2d_determinant(&a2d, &b2d);
+
+    }
 
 }
 
@@ -682,10 +709,22 @@ impl CoordinateDifferences{
         CoordinateDifferences::sort_edge_dots(&result)
     }
 
+
+
 }
 
+struct PlanarCoordinates {
+    size: usize,
+    data:  Vec<CoordinateDifferences>,
+}
 
+impl PlanarCoordinates {
 
+    fn new(x: CoordinateDifferences) -> PlanarCoordinates {
+
+        
+    }
+}
 
 fn main() {
     
