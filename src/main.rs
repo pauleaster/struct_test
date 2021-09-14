@@ -32,6 +32,7 @@ fn float_equals(x: f64, y: f64, eps: f64) -> bool{
 }
 
 
+#[derive(Debug)]
 struct Coordinate {
 
     x: f64,
@@ -55,6 +56,31 @@ impl Coordinate {
         };
 
         result
+    }
+
+    fn new_from_vector( coordinate : Vec<f64>) -> Coordinate {
+
+        // Only take the first three components if more are given
+        let mut size = coordinate.len();
+        if size > 3 {
+            size = 3;
+        }
+        let mut x:f64 = 0.0;
+        let mut y:f64 = 0.0;
+        let mut z:f64 = 0.0;
+
+        for idx in 0..size{
+            if idx == 0 {
+                x = coordinate[idx];
+            }
+            if idx == 1 {
+                y = coordinate[idx];
+            }
+            if idx == 2 {
+                z = coordinate[idx];
+            }
+        }
+        Coordinate::new(x,y,z)
     }
 
 
@@ -254,6 +280,25 @@ impl Coordinate {
         self.dot(pt) / self.mag / pt.mag
     }
 
+    fn unit_cross(&self, pt: &Coordinate) -> Coordinate{
+
+        let x = self.y * pt.z - self.z * pt.y;
+        let y = self.z * pt.x - self.x * pt.z;
+        let z = self.x * pt.y - self.y * pt.x;
+        let mag = Coordinate::calc_mag(x,y,z);
+        
+        Coordinate{
+            x: x / mag,
+            y: y / mag,
+            z: z / mag,
+            mag: 1.0,
+        }
+    }
+
+    fn expand(self: &Coordinate) -> Vec<f64> {
+        vec!(self.x, self.y, self.z)
+    }
+
     fn angle(&self, pt:&Coordinate) -> f64 {
 
         self.unit_dot(pt).acos() * 180.0 / PI 
@@ -290,6 +335,7 @@ impl Coordinate {
 }
 
 
+#[derive(Debug)]
 struct CoordinateVector {
 
     size: usize,
@@ -307,6 +353,20 @@ impl CoordinateVector {
             data : data, // note this should move data
         };
         result
+    }
+
+
+
+
+    fn new_from_empty() -> CoordinateVector {
+        
+        let mut data: Vec<Coordinate> = Vec::new();
+        let mut size:usize = 0;
+
+        CoordinateVector {
+            size,
+            data,
+        }
     }
 
     fn new_from_random_vertices(vertices: usize) -> CoordinateVector {
@@ -400,6 +460,10 @@ impl CoordinateVector {
         return CoordinateVector::new(data);
     }
 
+    fn copy(&self) -> CoordinateVector {
+        self.clone()
+    }
+
     
     fn zero(&self) -> CoordinateVector{
 
@@ -411,6 +475,12 @@ impl CoordinateVector {
         zero_vectors
     }
 
+    fn push( & mut self, pt : & Coordinate) {
+
+        self.data.push(pt.clone());
+        self.size = self.size + 1;
+
+    }
 
     fn print(&self, precision: usize) {
 
@@ -499,6 +569,8 @@ struct SwapResult {
     edge2: Vec<f64>,
     swapped: bool,
 }
+
+#[derive(Debug)]
 struct CoordinateDifferences {
 
     size: usize,
@@ -510,6 +582,7 @@ struct CoordinateDifferences {
     signs: Vec <f64>,
     dots : Vec <f64>,
 }
+
 
 // This is using up all the time!!!!!!!!!
 impl CoordinateDifferences{
@@ -609,10 +682,19 @@ impl CoordinateDifferences{
         if FLOAT_FILTER {
             println!("Vertices filtered by angle to {}",ANGLE_FILTER);
         }
-        let edge_dots = CoordinateDifferences::get_edge_dots(&self.first_index,&self.second_index,&self.data);
-        for edge_vec in edge_dots.iter() {
+        let edge_dots_and_unit_norms = CoordinateDifferences::get_edge_dots_and_unit_norms(&self.first_index,&self.second_index,&self.data);
+        for edge_vec in edge_dots_and_unit_norms.iter() {
             if ! FLOAT_FILTER{
-                println!("<( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}",edge_vec[0],edge_vec[1],edge_vec[2],edge_vec[3],edge_vec[4], field=field, precision=precision,angle_precision = precision-2);
+                println!("<( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}, unorm = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
+                            edge_vec[0],
+                            edge_vec[1],
+                            edge_vec[2],
+                            edge_vec[3],
+                            edge_vec[4], 
+                            edge_vec[5], 
+                            edge_vec[6], 
+                            edge_vec[7], 
+                            field=field, precision=precision,angle_precision = precision-2);
             } else {
                 if float_equals(ANGLE_FILTER, edge_vec[4], EPS) {
                     angle_filter_count += 1; 
@@ -677,7 +759,7 @@ impl CoordinateDifferences{
 
     }
 
-    fn get_edge_dots(first_index:&Vec <usize>,second_index:&Vec <usize>,data:&Vec<Coordinate>) -> Vec<Vec<f64>>{
+    fn get_edge_dots_and_unit_norms(first_index:&Vec <usize>,second_index:&Vec <usize>,data:&Vec<Coordinate>) -> Vec<Vec<f64>>{
 
 
         let mut result : Vec<Vec<f64>> = Vec::new();
@@ -689,19 +771,23 @@ impl CoordinateDifferences{
                 }
                 if *first_idx1 == *first_idx2 {
                     let mut this_vec : Vec<f64> = Vec::new();                 
-                    this_vec.extend([*second_idx1 as f64, *first_idx1 as f64, *second_idx2 as f64, data[idx1].unit_dot(&data[idx2]), data[idx1].angle(&data[idx2])]); 
+                    this_vec.extend([*second_idx1 as f64, *first_idx1 as f64, *second_idx2 as f64, data[idx1].unit_dot(&data[idx2]), data[idx1].angle(&data[idx2]) ]); 
+                    this_vec.extend(data[idx1].unit_cross(&data[idx2]).expand().iter());
                     result.push(this_vec);
                 } else if second_idx1 == second_idx2 {
                         let mut this_vec : Vec<f64> = Vec::new();
                         this_vec.extend([*first_idx1 as f64, *second_idx1 as f64, *first_idx2 as f64, data[idx1].unit_dot(&data[idx2]), data[idx1].angle(&data[idx2])]); 
+                        this_vec.extend(data[idx1].unit_cross(&data[idx2]).expand().iter());
                         result.push(this_vec);
                 } else if first_idx1 == second_idx2 {
                         let mut this_vec : Vec<f64> = Vec::new();
                         this_vec.extend([*second_idx1 as f64, *first_idx1 as f64, *first_idx2 as f64, -1.0 * data[idx1].unit_dot(&data[idx2]), data[idx1].angle(&data[idx2].mult(-1.0))]); 
+                        this_vec.extend(data[idx1].unit_cross(&data[idx2]).expand().iter());
                         result.push(this_vec);
                 } else if second_idx1 == first_idx2 {
                     let mut this_vec : Vec<f64> = Vec::new();
                     this_vec.extend([*first_idx1 as f64, *second_idx1 as f64, *second_idx2 as f64, -1.0 * data[idx1].unit_dot(&data[idx2]), data[idx1].angle(&data[idx2].mult(-1.0))]); 
+                    this_vec.extend(data[idx1].unit_cross(&data[idx2]).expand().iter());
                     result.push(this_vec);
                 }
             }
@@ -709,22 +795,106 @@ impl CoordinateDifferences{
         CoordinateDifferences::sort_edge_dots(&result)
     }
 
-
-
 }
 
-struct PlanarCoordinates {
-    size: usize,
-    data:  Vec<CoordinateDifferences>,
+#[derive(Debug)]
+struct UnitNorms {
+    indices : Vec<Vec<usize>>,
+    unit_norms : CoordinateVector,
+    unit_dots : Vec<f64>,
+    angles: Vec<f64>,
 }
 
-impl PlanarCoordinates {
+impl UnitNorms{
 
-    fn new(x: CoordinateDifferences) -> PlanarCoordinates {
 
-        
+    fn new(edge_dots_and_unit_norms: & Vec<Vec<f64>>) -> UnitNorms{
+
+        let mut indices: Vec<Vec<usize>> = Vec::new();
+        let mut unit_norms: CoordinateVector = CoordinateVector::new_from_empty();
+        let mut unit_dots: Vec<f64> = Vec::new();
+        let mut angles: Vec<f64> = Vec::new();
+
+        for dot_and_norm in edge_dots_and_unit_norms.iter(){
+
+            let mut these_indices : Vec<usize> = Vec::new();
+            for idx1 in 0..3 {
+                these_indices.push(dot_and_norm[idx1] as usize);
+            }
+            indices.push(these_indices);
+            unit_dots.push(dot_and_norm[3]);
+            angles.push(dot_and_norm[4]);
+
+            unit_norms.push( & Coordinate::new_from_vector(dot_and_norm[5..7].to_vec()));
+        }
+        UnitNorms {
+            indices,
+            unit_norms,
+            unit_dots,
+            angles
+        }
     }
 }
+
+// struct PlanarCoordinates {
+//     num_faces: usize,
+//     face_coords:  Vec<CoordinateVector>,
+//     face_basis: Vec<CoordinateDifferences>,
+
+// }
+// // Each vector represents a different face
+// // For each face, i, of num_faces:
+// //
+// // face_coords[i] has a CoordinateVector of all the vertices in that face, face_coords[i].size holds the number of vertices
+// // and face_coords[i].data[j] holds the jth vertex in ith face.
+// //
+// // face_basis[i] has a CoordinateDifferences that holds the two basic vectors defining that face
+// // face_basis[i].size should be 2 for each valid face.
+// // face_basis[i].first_index[0],face_basis[i].second_index[0]  holds the indices for the first basis vector from the first_index[0] vertex to the second_index[0] vertex.
+// // face_basis[i].first_index[1],face_basis[i].second_index[1]  holds the indices for the second basis vector from the first_index[1] vertex to the second_index[1] vertex.
+// // face_basis[i].data[0], holds the relative vector for the first basis vector from the first_index[0] vertex to the second_index[0] vertex.
+// // face_basis[i].data[1], holds the relative vector for the second basis vector from the first_index[1] vertex to the second_index[1] vertex.
+
+
+// impl PlanarCoordinates {
+
+//     fn new(&c: CoordinateVector, &x: CoordinateDifferences) -> PlanarCoordinates {
+
+
+//         let mut face_basis_defined: Vec<bool>;
+//         let mut num_faces: usize = 0;
+
+//         for (idx1, idx2, delta_vector) in izip!(&x.first_index,&x.second_index,&x.data){
+            
+        
+//         }
+        
+
+        
+//     }
+// }
+
+
+// struct CoordinateVector {
+
+//     size: usize,
+//     data:  Vec<Coordinate>,
+// }
+
+// struct CoordinateDifferences {
+
+//     size: usize,
+//     data:  Vec<Coordinate>,
+//     first_index : Vec <usize>,
+//     second_index : Vec <usize>,
+//     mean_magnitude : f64,
+//     magnitude_range : f64,
+//     signs: Vec <f64>,
+//     dots : Vec <f64>,
+// }
+
+
+
 
 fn main() {
     
@@ -882,6 +1052,9 @@ fn main() {
             break;
         }
     }
+    let edge_dots_and_unit_norms = CoordinateDifferences::get_edge_dots_and_unit_norms(&coordinate_differences.first_index,&coordinate_differences.second_index,&coordinate_differences.data);
+    let unit_norms: UnitNorms = UnitNorms::new(&edge_dots_and_unit_norms);
+    // println!("{:?}", unit_norms);
 
     let print_sub_timer = now.elapsed().as_secs_f64();
     println!("Number of loops = {}", counter);
