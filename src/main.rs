@@ -244,8 +244,12 @@ impl Coordinate {
         
         let eps = 1e-6_f64;
 
-        self.sub(&pt).mag < eps
+        return self.sub(&pt).mag < eps
 
+    }
+
+    fn equal_or_inverted( &self, pt: &Coordinate) -> bool {     
+        self.equal(&pt) | self.equal(&pt.mult(-1.0))
     }
 
     fn print(&self, ch:char, precision: usize) {
@@ -803,6 +807,8 @@ struct UnitNorms {
     unit_norms : CoordinateVector,
     unit_dots : Vec<f64>,
     angles: Vec<f64>,
+    face_indices: Vec<usize>,
+    size: usize,
 }
 
 impl UnitNorms{
@@ -814,6 +820,7 @@ impl UnitNorms{
         let mut unit_norms: CoordinateVector = CoordinateVector::new_from_empty();
         let mut unit_dots: Vec<f64> = Vec::new();
         let mut angles: Vec<f64> = Vec::new();
+        let mut size: usize = 0;
 
         for dot_and_norm in edge_dots_and_unit_norms.iter(){
 
@@ -825,40 +832,84 @@ impl UnitNorms{
             unit_dots.push(dot_and_norm[3]);
             angles.push(dot_and_norm[4]);
 
-            unit_norms.push( & Coordinate::new_from_vector(dot_and_norm[5..7].to_vec()));
+            unit_norms.push( & Coordinate::new_from_vector(dot_and_norm[5..8].to_vec()));
+            size += 1;
         }
+
+        let face_indices = UnitNorms::calc_face_indices(&unit_norms);
+
         UnitNorms {
             indices,
             unit_norms,
             unit_dots,
-            angles
+            angles,
+            face_indices,
+            size,
         }
     }
+
+    fn calc_face_indices(un: & CoordinateVector) -> Vec<usize>{
+
+        let mut face_indices: Vec<i32> = vec![-1;un.size];
+
+        
+        for (idx1, norm1) in un.data.iter().enumerate() {
+            if face_indices[idx1] < 0 {
+                face_indices[idx1] = idx1 as i32;
+            }
+            if idx1 < un.size - 1 {
+                for (idx2, norm2)  in un.data[idx1 + 1..un.size].iter().enumerate(){
+                    if face_indices[idx2 + idx1 + 1] < 0 {
+                        if norm1.equal_or_inverted(norm2) {
+                            face_indices[idx2 + idx1 + 1] = idx1 as i32;
+                        }
+                    }
+                }
+            }
+        }
+
+        return face_indices.iter().map(|&x| x as usize).collect();
+    }
+
+    // fn sort_by_face(& self) -> UnitNorms {
+
+
+    // }
+
+    fn print(&self, precision: usize) {
+
+        let field:usize = precision + 4;
+
+        println!("{}",self.unit_norms.data[3].z);
+        println!();
+
+        for idx in 0..self.size{
+            println!("Face# {} : <( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}, unorm = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
+            self.face_indices[idx],
+            self.indices[idx][0],
+            self.indices[idx][1],
+            self.indices[idx][2],
+            self.unit_dots[idx],
+            self.angles[idx], 
+            self.unit_norms.data[idx].x, 
+            self.unit_norms.data[idx].y, 
+            self.unit_norms.data[idx].z, 
+            field=field, precision=precision,angle_precision = precision-2);
+        }
+                
+    }
+
 }
 
-// struct PlanarCoordinates {
+// struct PlanarNorms {
 //     num_faces: usize,
-//     face_coords:  Vec<CoordinateVector>,
-//     face_basis: Vec<CoordinateDifferences>,
-
+//     faces:  Vec<UnitNorms>,
 // }
-// // Each vector represents a different face
-// // For each face, i, of num_faces:
-// //
-// // face_coords[i] has a CoordinateVector of all the vertices in that face, face_coords[i].size holds the number of vertices
-// // and face_coords[i].data[j] holds the jth vertex in ith face.
-// //
-// // face_basis[i] has a CoordinateDifferences that holds the two basic vectors defining that face
-// // face_basis[i].size should be 2 for each valid face.
-// // face_basis[i].first_index[0],face_basis[i].second_index[0]  holds the indices for the first basis vector from the first_index[0] vertex to the second_index[0] vertex.
-// // face_basis[i].first_index[1],face_basis[i].second_index[1]  holds the indices for the second basis vector from the first_index[1] vertex to the second_index[1] vertex.
-// // face_basis[i].data[0], holds the relative vector for the first basis vector from the first_index[0] vertex to the second_index[0] vertex.
-// // face_basis[i].data[1], holds the relative vector for the second basis vector from the first_index[1] vertex to the second_index[1] vertex.
 
 
-// impl PlanarCoordinates {
+// impl PlanarNorms {
 
-//     fn new(&c: CoordinateVector, &x: CoordinateDifferences) -> PlanarCoordinates {
+//     fn new(&um: UnitNorms) -> PlanarNorms {
 
 
 //         let mut face_basis_defined: Vec<bool>;
@@ -1054,22 +1105,23 @@ fn main() {
     }
     let edge_dots_and_unit_norms = CoordinateDifferences::get_edge_dots_and_unit_norms(&coordinate_differences.first_index,&coordinate_differences.second_index,&coordinate_differences.data);
     let unit_norms: UnitNorms = UnitNorms::new(&edge_dots_and_unit_norms);
-    // println!("{:?}", unit_norms);
+    println!("*********************************************************************************************************************************");
+    unit_norms.print(PRECISION)
 
-    let print_sub_timer = now.elapsed().as_secs_f64();
-    println!("Number of loops = {}", counter);
+    // let print_sub_timer = now.elapsed().as_secs_f64();
+    // println!("Number of loops = {}", counter);
 
-    println!("Time in count_a = {:0.6} ms", 1000.0 * count_a);
-    println!("Time in count_b = {:0.6} ms", 1000.0 * count_b);
-    println!("Time in count_c = {:0.6} ms", 1000.0 * count_c);
-    unsafe{
-        println!("Time in CoordinateDifferences.new() = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES);
-        println!("Time in CoordinateDifferences.new(), loop only = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES_LOOP_ONLY);
-        println!("Time in CoordinateDifferences.new(), min max only = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES_MIN_MAX_ONLY);
-    }
-    let final_time = now.elapsed().as_secs_f64();
-    print_timer += final_time - print_sub_timer;
-    println!("Time spent printing to screen = {:0.6} ms", print_timer * 1000.0);
-    println!("Time not printing to screen = {:0.6} ms", (final_time - print_timer) * 1000.0);
+    // println!("Time in count_a = {:0.6} ms", 1000.0 * count_a);
+    // println!("Time in count_b = {:0.6} ms", 1000.0 * count_b);
+    // println!("Time in count_c = {:0.6} ms", 1000.0 * count_c);
+    // unsafe{
+    //     println!("Time in CoordinateDifferences.new() = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES);
+    //     println!("Time in CoordinateDifferences.new(), loop only = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES_LOOP_ONLY);
+    //     println!("Time in CoordinateDifferences.new(), min max only = {:0.6} ms", 1000.0 * GLOB_NEW_COORDINATE_DIFFERENCES_MIN_MAX_ONLY);
+    // }
+    // let final_time = now.elapsed().as_secs_f64();
+    // print_timer += final_time - print_sub_timer;
+    // println!("Time spent printing to screen = {:0.6} ms", print_timer * 1000.0);
+    // println!("Time not printing to screen = {:0.6} ms", (final_time - print_timer) * 1000.0);
 
 }
