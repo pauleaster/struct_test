@@ -1,4 +1,4 @@
-use itertools::izip;
+use itertools::{Itertools, izip};
 use std::time::Instant;
 // #[macro_use] extern crate text_io; // used to pause 
 // use rand::prelude::*;
@@ -31,6 +31,49 @@ fn float_equals(x: f64, y: f64, eps: f64) -> bool{
     (x-y).abs() < eps.abs()
 }
 
+fn vec_copy_usize( data: &Vec<usize>) -> Vec<usize> {
+
+    data.into_iter().map(|&x| x).collect()
+}
+
+fn vec_2d_copy_usize( data: &Vec<Vec<usize>>) -> Vec<Vec<usize>> {
+
+    let mut result: Vec<Vec<usize>> = Vec::new();
+
+
+    for uvec in data.iter().map(|x| vec_copy_usize(&x)){
+        result.push(uvec);
+        // result.push(uvec.iter().map(|&x| x).collect());
+    }
+
+    result
+
+}
+
+fn vec_copy_f64( data: &Vec<f64>) -> Vec<f64> {
+
+    data.into_iter().map(|&x| x).collect()
+}
+
+
+// fn vec_copy<T>(data : &Vec<T>) -> Vec<T> {
+    
+//     data.into_iter().map(|x| x).collect()
+// }
+
+// fn vec_2d_copy<T>( data: &Vec<Vec<T>>) -> Vec<Vec<T>> {
+
+//     let mut result: Vec<Vec<T>> = Vec::new();
+//     let mut uvec : Vec<T> = Vec::new();
+
+//     for uvec in data.iter().map(|&x| x){
+//         result.push(vec_copy(&uvec));
+//         // result.push(uvec.iter().map(|&x| x).collect());
+//     }
+
+//     result
+
+// }
 
 #[derive(Debug)]
 struct Coordinate {
@@ -354,7 +397,7 @@ impl CoordinateVector {
         let result = CoordinateVector{
 
             size: data.len(),
-            data : data, // note this should move data
+            data, // note this should move data
         };
         result
     }
@@ -565,14 +608,25 @@ impl CoordinateVector {
         // }
         return (new_result, true_dx.max_mag());
     }
+
+    fn indexed_coordinate(&self, index: usize) -> Coordinate{
+
+        if index < self.size {
+            return self.data[index].copy();
+        } else {
+            panic!("Index out of bounds, requesting index {} and maximum index is {}",index,self.size);
+        }
+        
+    }
     
 }
 
-struct SwapResult {
+struct EdgeSwapResult {
     edge1: Vec<f64>,
     edge2: Vec<f64>,
     swapped: bool,
 }
+
 
 #[derive(Debug)]
 struct CoordinateDifferences {
@@ -718,19 +772,19 @@ impl CoordinateDifferences{
         return edge.iter().map(|x| *x).collect()
     }
 
-    fn order_edges( first_edge: & Vec<f64> ,  second_edge: & Vec<f64>) -> SwapResult {
+    fn order_edges( first_edge: & Vec<f64> ,  second_edge: & Vec<f64>) -> EdgeSwapResult {
         if first_edge[0] < second_edge[0] { 
-            return SwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
         } else if first_edge[0] > second_edge[0] {
-            return SwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
         } else if first_edge[1] < second_edge[1] {
-            return SwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
         } else if first_edge[1] > second_edge[1] {
-            return SwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
         } else if first_edge[2] < second_edge[2] {
-            return SwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
         } else {
-            return SwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
         }
     }
 
@@ -802,6 +856,115 @@ impl CoordinateDifferences{
 }
 
 #[derive(Debug)]
+struct UnitNormSingle {
+    indices : Vec<usize>,
+    unit_norm : Coordinate,
+    unit_dot : f64,
+    angle: f64,
+    face_index: usize,
+    unit_norms_index: usize,
+}
+
+impl UnitNormSingle {
+
+    fn new( indices : & Vec<usize>, unit_norm: & Coordinate, unit_dot: f64, angle: f64, face_index: usize, unit_norms_index: usize) 
+    
+                ->UnitNormSingle {
+
+        UnitNormSingle {
+            indices: indices.iter().map(|&x| x).collect(),
+            unit_norm: unit_norm.copy(),
+            unit_dot, 
+            angle,
+            face_index,
+            unit_norms_index,
+        }
+    }
+
+    fn copy(self: & UnitNormSingle) -> UnitNormSingle {
+
+        UnitNormSingle::new(&self.indices, &self.unit_norm, self.unit_dot, self.angle, self.face_index, self.unit_norms_index)
+
+    }
+}
+
+
+#[derive(Debug)]
+struct UnitNormSwapResult {
+
+    unit_norms_pair : (UnitNormSingle, UnitNormSingle),
+    swapped: bool,
+}
+
+impl UnitNormSwapResult {
+
+    fn new(un: &UnitNorms, index: usize) -> UnitNormSwapResult {
+
+        if index < un.size - 1 {
+            let unit_norms_pair = (un.get_indexed_unit_norm(index), un.get_indexed_unit_norm(index + 1));
+            let swapped = false;
+            UnitNormSwapResult {
+
+                unit_norms_pair,
+                swapped,
+            }
+
+        } else {
+            panic!("UnitSwapResult::new() called with an index of {}, the size of unit_norms is only {}.\n\
+            A valid index required that 0 < {} < {}",index,un.size,index,un.size-1)
+        }
+        
+
+    }
+
+    fn copy(&self) ->  UnitNormSwapResult {
+        UnitNormSwapResult {
+
+            unit_norms_pair: (self.unit_norms_pair.0.copy(), self.unit_norms_pair.1.copy()),
+            swapped: self.swapped,
+        }
+    }
+
+    fn new_from_unit_norm_singles(uns0: &UnitNormSingle, uns1: &UnitNormSingle, swapped: bool) -> UnitNormSwapResult {
+
+        UnitNormSwapResult {
+
+            unit_norms_pair: (uns0.copy(), uns1.copy()),
+            swapped,
+        }
+    }
+
+    fn comp(self : &UnitNormSwapResult) -> bool { // calculate whether the first face index is less than the second face index
+        
+        self.unit_norms_pair.0.face_index <= self.unit_norms_pair.1.face_index
+    }
+
+    fn swap( self: &UnitNormSwapResult) -> UnitNormSwapResult { // The unit norms need swapping but so does the unit_norms_index!!
+
+        let mut uns0: UnitNormSingle = self.unit_norms_pair.0.copy();
+        let mut uns1: UnitNormSingle = self.unit_norms_pair.1.copy();
+        let swapped = true;
+        let first_index = uns0.unit_norms_index;
+        let second_index = uns1.unit_norms_index;
+        uns0.unit_norms_index = second_index;
+        uns1.unit_norms_index = first_index;
+        println!("Swapping indices {} <-> {}", first_index,second_index);
+
+        UnitNormSwapResult::new_from_unit_norm_singles(&self.unit_norms_pair.1, &self.unit_norms_pair.0, swapped)
+
+    }
+
+    fn ordered_unit_norm(self : & UnitNormSwapResult) -> UnitNormSwapResult {
+
+        if self.comp() {
+            self.copy()
+        } else {
+            self.swap()
+        }
+    }
+}
+
+#[derive(Debug)]
 struct UnitNorms {
     indices : Vec<Vec<usize>>,
     unit_norms : CoordinateVector,
@@ -848,20 +1011,54 @@ impl UnitNorms{
         }
     }
 
+    fn copy( &self) -> UnitNorms {
+
+
+        UnitNorms {
+            indices: vec_2d_copy_usize(&self.indices),
+            unit_norms: self.unit_norms.copy(),
+            unit_dots: vec_copy_f64(&self.unit_dots),
+            angles: vec_copy_f64(&self.angles),
+            face_indices: vec_copy_usize(&self.face_indices),
+            size: self.size,
+        }
+
+    }
+
+    fn in_place_store(&mut self,  unsr: & UnitNormSwapResult) { 
+
+        let first_index = unsr.unit_norms_pair.0.unit_norms_index;
+        let second_index = unsr.unit_norms_pair.1.unit_norms_index;
+
+        self.indices[first_index] = vec_copy_usize(&unsr.unit_norms_pair.0.indices);
+        self.unit_norms.data[first_index] = unsr.unit_norms_pair.0.unit_norm.copy();
+        self.unit_dots[first_index] = unsr.unit_norms_pair.0.unit_dot;
+        self.angles[first_index] = unsr.unit_norms_pair.0.angle;
+        self.face_indices[first_index] = unsr.unit_norms_pair.0.face_index;
+
+        self.indices[second_index] = vec_copy_usize(&unsr.unit_norms_pair.1.indices);
+        self.unit_norms.data[second_index] = unsr.unit_norms_pair.1.unit_norm.copy();
+        self.unit_dots[second_index] = unsr.unit_norms_pair.1.unit_dot;
+        self.angles[second_index] = unsr.unit_norms_pair.1.angle;
+        self.face_indices[second_index] = unsr.unit_norms_pair.1.face_index;
+
+    }
+
     fn calc_face_indices(un: & CoordinateVector) -> Vec<usize>{
 
         let mut face_indices: Vec<i32> = vec![-1;un.size];
 
-        
+        let mut face_index: i32 = 0;
         for (idx1, norm1) in un.data.iter().enumerate() {
             if face_indices[idx1] < 0 {
-                face_indices[idx1] = idx1 as i32;
+                face_index += 1;
+                face_indices[idx1] = face_index as i32;
             }
             if idx1 < un.size - 1 {
                 for (idx2, norm2)  in un.data[idx1 + 1..un.size].iter().enumerate(){
                     if face_indices[idx2 + idx1 + 1] < 0 {
                         if norm1.equal_or_inverted(norm2) {
-                            face_indices[idx2 + idx1 + 1] = idx1 as i32;
+                            face_indices[idx2 + idx1 + 1] = face_index as i32;
                         }
                     }
                 }
@@ -869,12 +1066,41 @@ impl UnitNorms{
         }
 
         return face_indices.iter().map(|&x| x as usize).collect();
+
     }
 
-    // fn sort_by_face(& self) -> UnitNorms {
+    fn get_indexed_unit_norm(& self, index: usize) -> UnitNormSingle {
 
 
-    // }
+        UnitNormSingle::new(&self.indices[index],
+                            &self.unit_norms.indexed_coordinate(index), 
+                            self.unit_dots[index], 
+                            self.angles[index], 
+                            self.face_indices[index],
+                            index)
+    }
+
+    fn sort_by_face(& self) -> UnitNorms {
+
+
+        let len= self.size;
+        let mut sorted_unit_norms = UnitNorms::copy(&self);
+    
+    
+        for _i in 0.. len - 1 { // bubble sort, note that using `len` will panic, must be len - 1
+            let mut swapped: bool = false;
+            for j in 0.. len - 1 {
+                let this_swap_result = UnitNormSwapResult::new(&self,j).ordered_unit_norm();
+                swapped = swapped | this_swap_result.swapped;
+                sorted_unit_norms.in_place_store(&this_swap_result);
+
+            }
+            if ! swapped {
+                break;
+            }
+        }
+        sorted_unit_norms
+    }
 
     fn print(&self, precision: usize) {
 
@@ -884,7 +1110,8 @@ impl UnitNorms{
         println!();
 
         for idx in 0..self.size{
-            println!("Face# {} : <( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}, unorm = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
+            println!("{} : Face# {} : <( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}, unorm = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
+            idx,
             self.face_indices[idx],
             self.indices[idx][0],
             self.indices[idx][1],
@@ -1105,8 +1332,10 @@ fn main() {
     }
     let edge_dots_and_unit_norms = CoordinateDifferences::get_edge_dots_and_unit_norms(&coordinate_differences.first_index,&coordinate_differences.second_index,&coordinate_differences.data);
     let unit_norms: UnitNorms = UnitNorms::new(&edge_dots_and_unit_norms);
+    unit_norms.print(PRECISION);
     println!("*********************************************************************************************************************************");
-    unit_norms.print(PRECISION)
+    let unit_norms = unit_norms.sort_by_face();
+    unit_norms.print(PRECISION);
 
     // let print_sub_timer = now.elapsed().as_secs_f64();
     // println!("Number of loops = {}", counter);
