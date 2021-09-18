@@ -534,7 +534,7 @@ impl CoordinateVector {
 
         println!("Length = {:3}",self.size);
         for (idx, coordinate) in self.data.iter().enumerate() {
-            print!("{}:",idx);
+            print!("{}, coord:",idx);
             coordinate.print('\n', precision);
         }
     }
@@ -857,33 +857,33 @@ impl CoordinateDifferences{
 
 #[derive(Debug)]
 struct UnitNormSingle {
-    indices : Vec<usize>,
+    vertices : Vec<usize>,
     unit_norm : Coordinate,
     unit_dot : f64,
     angle: f64,
     face_index: usize,
-    unit_norms_index: usize,
+    // unit_norms_index: usize,
 }
 
 impl UnitNormSingle {
 
-    fn new( indices : & Vec<usize>, unit_norm: & Coordinate, unit_dot: f64, angle: f64, face_index: usize, unit_norms_index: usize) 
+    fn new( indices : & Vec<usize>, unit_norm: & Coordinate, unit_dot: f64, angle: f64, face_index: usize) //, unit_norms_index: usize) 
     
                 ->UnitNormSingle {
 
         UnitNormSingle {
-            indices: indices.iter().map(|&x| x).collect(),
+            vertices: indices.iter().map(|&x| x).collect(),
             unit_norm: unit_norm.copy(),
             unit_dot, 
             angle,
             face_index,
-            unit_norms_index,
+            // unit_norms_index,
         }
     }
 
     fn copy(self: & UnitNormSingle) -> UnitNormSingle {
 
-        UnitNormSingle::new(&self.indices, &self.unit_norm, self.unit_dot, self.angle, self.face_index, self.unit_norms_index)
+        UnitNormSingle::new(&self.vertices, &self.unit_norm, self.unit_dot, self.angle, self.face_index) //, self.unit_norms_index)
 
     }
 }
@@ -893,6 +893,7 @@ impl UnitNormSingle {
 struct UnitNormSwapResult {
 
     unit_norms_pair : (UnitNormSingle, UnitNormSingle),
+    indices: (usize, usize),
     swapped: bool,
 }
 
@@ -906,6 +907,7 @@ impl UnitNormSwapResult {
             UnitNormSwapResult {
 
                 unit_norms_pair,
+                indices: (index, index+1),
                 swapped,
             }
 
@@ -921,15 +923,17 @@ impl UnitNormSwapResult {
         UnitNormSwapResult {
 
             unit_norms_pair: (self.unit_norms_pair.0.copy(), self.unit_norms_pair.1.copy()),
+            indices: (self.indices.0, self.indices.1),
             swapped: self.swapped,
         }
     }
 
-    fn new_from_unit_norm_singles(uns0: &UnitNormSingle, uns1: &UnitNormSingle, swapped: bool) -> UnitNormSwapResult {
+    fn new_from_unit_norm_singles(uns0: &UnitNormSingle, uns1: &UnitNormSingle, indices: (usize, usize), swapped: bool) -> UnitNormSwapResult {
 
         UnitNormSwapResult {
 
             unit_norms_pair: (uns0.copy(), uns1.copy()),
+            indices,
             swapped,
         }
     }
@@ -939,18 +943,32 @@ impl UnitNormSwapResult {
         self.unit_norms_pair.0.face_index <= self.unit_norms_pair.1.face_index
     }
 
-    fn swap( self: &UnitNormSwapResult) -> UnitNormSwapResult { // The unit norms need swapping but so does the unit_norms_index!!
+    fn swap( self: &UnitNormSwapResult) -> UnitNormSwapResult { 
 
-        let mut uns0: UnitNormSingle = self.unit_norms_pair.0.copy();
-        let mut uns1: UnitNormSingle = self.unit_norms_pair.1.copy();
+        // println!("Before UnitNormSwapResult.swap ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        // self.print();
+        // let uns0: UnitNormSingle = self.unit_norms_pair.0.copy();
+        // let uns1: UnitNormSingle = self.unit_norms_pair.1.copy();
+        let index1 = self.indices.0;
+        let index2 = self.indices.1;
+        // println!("UnitNormSwapResult.swap indices = ({},{})", index1, index2);
+
         let swapped = true;
-        let first_index = uns0.unit_norms_index;
-        let second_index = uns1.unit_norms_index;
-        uns0.unit_norms_index = second_index;
-        uns1.unit_norms_index = first_index;
-        println!("Swapping indices {} <-> {}", first_index,second_index);
-
-        UnitNormSwapResult::new_from_unit_norm_singles(&self.unit_norms_pair.1, &self.unit_norms_pair.0, swapped)
+        // let first_index = uns0.unit_norms_index;
+        // let second_index = uns1.unit_norms_index;
+        // uns0.unit_norms_index = second_index;
+        // uns1.unit_norms_index = first_index;
+        // println!("Swapping indices {} <-> {}", first_index,second_index);
+        // println!("Indices = ({},{})", self.unit_norms_pair.1.unit_norms_index, self.unit_norms_pair.0.unit_norms_index);
+        let result = UnitNormSwapResult::new_from_unit_norm_singles(&self.unit_norms_pair.1,
+                                                                                     &self.unit_norms_pair.0, 
+                                                                                     (index1, index2), 
+                                                                                     swapped);
+        // println!("After UnitNormSwapResult.swap ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        // result.print();
+        // println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        result
+        
 
     }
 
@@ -962,11 +980,40 @@ impl UnitNormSwapResult {
             self.swap()
         }
     }
+
+    fn print(self: & UnitNormSwapResult){
+
+        let precision: usize = 5;
+        let field: usize = 10;
+
+        for (idx,&unp) in [&self.unit_norms_pair.0,&self.unit_norms_pair.1].iter().enumerate() {
+            println!("{} : Face# {} : vertices ∠( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}, unorm = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
+            // indices are stored in the swap result to avoid confusion
+            match idx {
+                0 => self.indices.0,
+                1 => self.indices.1,
+                _ => panic!("Too many indices for print in UnitNormSwapResult"), // this should not be needed, only here to keep compiler happy
+            },
+            unp.face_index,
+            unp.vertices[0],
+            unp.vertices[1],
+            unp.vertices[2],
+            unp.unit_dot,
+            unp.angle, 
+            unp.unit_norm.x, 
+            unp.unit_norm.y,
+            unp.unit_norm.z, 
+            field=field, precision=precision,angle_precision = precision-2);
+        }
+       
+    }
+
+        
 }
 
 #[derive(Debug)]
 struct UnitNorms {
-    indices : Vec<Vec<usize>>,
+    vertices : Vec<Vec<usize>>,
     unit_norms : CoordinateVector,
     unit_dots : Vec<f64>,
     angles: Vec<f64>,
@@ -979,7 +1026,7 @@ impl UnitNorms{
 
     fn new(edge_dots_and_unit_norms: & Vec<Vec<f64>>) -> UnitNorms{
 
-        let mut indices: Vec<Vec<usize>> = Vec::new();
+        let mut vertices: Vec<Vec<usize>> = Vec::new();
         let mut unit_norms: CoordinateVector = CoordinateVector::new_from_empty();
         let mut unit_dots: Vec<f64> = Vec::new();
         let mut angles: Vec<f64> = Vec::new();
@@ -987,11 +1034,11 @@ impl UnitNorms{
 
         for dot_and_norm in edge_dots_and_unit_norms.iter(){
 
-            let mut these_indices : Vec<usize> = Vec::new();
+            let mut these_vertices : Vec<usize> = Vec::new();
             for idx1 in 0..3 {
-                these_indices.push(dot_and_norm[idx1] as usize);
+                these_vertices.push(dot_and_norm[idx1] as usize);
             }
-            indices.push(these_indices);
+            vertices.push(these_vertices);
             unit_dots.push(dot_and_norm[3]);
             angles.push(dot_and_norm[4]);
 
@@ -1002,7 +1049,7 @@ impl UnitNorms{
         let face_indices = UnitNorms::calc_face_indices(&unit_norms);
 
         UnitNorms {
-            indices,
+            vertices,
             unit_norms,
             unit_dots,
             angles,
@@ -1015,7 +1062,7 @@ impl UnitNorms{
 
 
         UnitNorms {
-            indices: vec_2d_copy_usize(&self.indices),
+            vertices: vec_2d_copy_usize(&self.vertices),
             unit_norms: self.unit_norms.copy(),
             unit_dots: vec_copy_f64(&self.unit_dots),
             angles: vec_copy_f64(&self.angles),
@@ -1027,20 +1074,30 @@ impl UnitNorms{
 
     fn in_place_store(&mut self,  unsr: & UnitNormSwapResult) { 
 
-        let first_index = unsr.unit_norms_pair.0.unit_norms_index;
-        let second_index = unsr.unit_norms_pair.1.unit_norms_index;
+        // println!("///////////before in_place_store  /////////////////");
+        // self.print(5);
+        // println!(r"\\\\\\\\\\\\ before in_place_store \\\\\\\\\\\\\");
+        let first_index = unsr.indices.0;
+        let second_index = unsr.indices.1;
+        // println!("First index = {}, second index = {}", first_index, second_index);
+        // println!("A swap result has {} occured", match unsr.swapped {true => "", false =>"not"} );
+        // println!("Swap result ->");
+        // unsr.print();
 
-        self.indices[first_index] = vec_copy_usize(&unsr.unit_norms_pair.0.indices);
+        self.vertices[first_index] = vec_copy_usize(&unsr.unit_norms_pair.0.vertices);
         self.unit_norms.data[first_index] = unsr.unit_norms_pair.0.unit_norm.copy();
         self.unit_dots[first_index] = unsr.unit_norms_pair.0.unit_dot;
         self.angles[first_index] = unsr.unit_norms_pair.0.angle;
         self.face_indices[first_index] = unsr.unit_norms_pair.0.face_index;
 
-        self.indices[second_index] = vec_copy_usize(&unsr.unit_norms_pair.1.indices);
+        self.vertices[second_index] = vec_copy_usize(&unsr.unit_norms_pair.1.vertices);
         self.unit_norms.data[second_index] = unsr.unit_norms_pair.1.unit_norm.copy();
         self.unit_dots[second_index] = unsr.unit_norms_pair.1.unit_dot;
         self.angles[second_index] = unsr.unit_norms_pair.1.angle;
         self.face_indices[second_index] = unsr.unit_norms_pair.1.face_index;
+        // println!("//////////////after in_place_store  /////////////////");
+        // self.print(5);
+        // println!(r"\\\\\\\\\\\\\\after in_place_store  \\\\\\\\\\\\");
 
     }
 
@@ -1072,12 +1129,11 @@ impl UnitNorms{
     fn get_indexed_unit_norm(& self, index: usize) -> UnitNormSingle {
 
 
-        UnitNormSingle::new(&self.indices[index],
+        UnitNormSingle::new(&self.vertices[index],
                             &self.unit_norms.indexed_coordinate(index), 
                             self.unit_dots[index], 
                             self.angles[index], 
-                            self.face_indices[index],
-                            index)
+                            self.face_indices[index])
     }
 
     fn sort_by_face(& self) -> UnitNorms {
@@ -1085,37 +1141,57 @@ impl UnitNorms{
 
         let len= self.size;
         let mut sorted_unit_norms = UnitNorms::copy(&self);
-    
+        // println!("%%%%%%%%%%%%%%%%% before sort %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+
+        sorted_unit_norms.print(6);
     
         for _i in 0.. len - 1 { // bubble sort, note that using `len` will panic, must be len - 1
             let mut swapped: bool = false;
             for j in 0.. len - 1 {
-                let this_swap_result = UnitNormSwapResult::new(&self,j).ordered_unit_norm();
-                swapped = swapped | this_swap_result.swapped;
-                sorted_unit_norms.in_place_store(&this_swap_result);
+                let this_swap_result = UnitNormSwapResult::new(&sorted_unit_norms,j);
+                // println!("^^^^^^^^^^^^ before ordered swap ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
+                // this_swap_result.print();
+                let ordered_swap_result = this_swap_result.ordered_unit_norm();
+                // println!("^^^^^^^^^^^^ after ordered swap ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
+                // ordered_swap_result.print();
+                // println!("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
+                swapped = swapped | ordered_swap_result.swapped;
+                // println!("%%%%%%%%%%% after sort %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+
+                // sorted_unit_norms.print(6);
+                // println!("%%%%%%%%%%%% before inplace save %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+                // sorted_unit_norms.print(6);
+                // println!("%%%%%%%%%%%%%after inplace save%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+                sorted_unit_norms.in_place_store(&ordered_swap_result);
+                // sorted_unit_norms.print(6);
+                // println!("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+                
 
             }
             if ! swapped {
                 break;
             }
+            
         }
+        
         sorted_unit_norms
+        
     }
 
     fn print(&self, precision: usize) {
 
         let field:usize = precision + 4;
 
-        println!("{}",self.unit_norms.data[3].z);
-        println!();
+        // println!("{}",self.unit_norms.data[3].z);
+        // println!();
 
         for idx in 0..self.size{
             println!("{} : Face# {} : <( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}, unorm = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
             idx,
             self.face_indices[idx],
-            self.indices[idx][0],
-            self.indices[idx][1],
-            self.indices[idx][2],
+            self.vertices[idx][0],
+            self.vertices[idx][1],
+            self.vertices[idx][2],
             self.unit_dots[idx],
             self.angles[idx], 
             self.unit_norms.data[idx].x, 
