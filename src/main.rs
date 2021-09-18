@@ -1,10 +1,9 @@
 use itertools::{Itertools, izip};
 use std::time::Instant;
-// #[macro_use] extern crate text_io; // used to pause 
-// use rand::prelude::*;
+
 use rand::distributions::{Distribution, Uniform};
-// use rand::SeedableRng;
-// use rand::rngs::StdRng;
+
+
 use std::f64::consts::PI;
 use std::env;
 use std::process::exit as exit;
@@ -43,7 +42,6 @@ fn vec_2d_copy_usize( data: &Vec<Vec<usize>>) -> Vec<Vec<usize>> {
 
     for uvec in data.iter().map(|x| vec_copy_usize(&x)){
         result.push(uvec);
-        // result.push(uvec.iter().map(|&x| x).collect());
     }
 
     result
@@ -55,25 +53,6 @@ fn vec_copy_f64( data: &Vec<f64>) -> Vec<f64> {
     data.into_iter().map(|&x| x).collect()
 }
 
-
-// fn vec_copy<T>(data : &Vec<T>) -> Vec<T> {
-    
-//     data.into_iter().map(|x| x).collect()
-// }
-
-// fn vec_2d_copy<T>( data: &Vec<Vec<T>>) -> Vec<Vec<T>> {
-
-//     let mut result: Vec<Vec<T>> = Vec::new();
-//     let mut uvec : Vec<T> = Vec::new();
-
-//     for uvec in data.iter().map(|&x| x){
-//         result.push(vec_copy(&uvec));
-//         // result.push(uvec.iter().map(|&x| x).collect());
-//     }
-
-//     result
-
-// }
 
 #[derive(Debug)]
 struct Coordinate {
@@ -407,8 +386,8 @@ impl CoordinateVector {
 
     fn new_from_empty() -> CoordinateVector {
         
-        let mut data: Vec<Coordinate> = Vec::new();
-        let mut size:usize = 0;
+        let data: Vec<Coordinate> = Vec::new();
+        let size:usize = 0;
 
         CoordinateVector {
             size,
@@ -544,9 +523,9 @@ impl CoordinateVector {
         
     }
 
-    fn reposition (&self, differences: &CoordinateDifferences, scale:f64, counter: usize, number_of_cycles_between_print: usize) -> (CoordinateVector, f64) {
+    fn reposition (&self, differences: &CoordinateDifferences, scale:f64) -> (CoordinateVector, f64) {
 
-        let mut result = self.clone();
+        let result = self; //.clone();
         let mut dx = self.zero();
         let mut dx_parallel = self.zero();
         let mut true_dx = self.zero();
@@ -600,12 +579,6 @@ impl CoordinateVector {
             new_result.data[idx] = result.data[idx].add(&dx_parallel.data[idx]).make_unit_vector();
             true_dx.data[idx] = new_result.data[idx].sub(&result.data[idx]);
         }
-        // if counter % number_of_cycles_between_print == 0 { 
-        //     println!("***************** dx_parallel *********************");
-        //     dx_parallel.print(STOP_POWER as usize + 2);
-        //     println!("dx_parallel.max_mag()={}", dx_parallel.max_mag());
-        //     println!("***************** dx *********************");
-        // }
         return (new_result, true_dx.max_mag());
     }
 
@@ -642,7 +615,6 @@ struct CoordinateDifferences {
 }
 
 
-// This is using up all the time!!!!!!!!!
 impl CoordinateDifferences{
     
     fn new(coordinates: &CoordinateVector) -> CoordinateDifferences {
@@ -727,8 +699,6 @@ impl CoordinateDifferences{
         const EPS: f64 = 1e-6;
         let mut angle_filter_count: usize = 0;
 
-        
-        
         println!("Length = {:3}",self.size);
         println!("E(|x|) = {:field$.precision$}",&self.mean_magnitude, precision=precision, field=field);
         for (idx1, idx2, coordinate, dot, sign) in izip!(&self.first_index, &self.second_index, &self.data, &self.dots, &self.signs) {
@@ -813,8 +783,6 @@ impl CoordinateDifferences{
             }
         }
         sorted_edges
-
-
     }
 
     fn get_edge_dots_and_unit_norms(first_index:&Vec <usize>,second_index:&Vec <usize>,data:&Vec<Coordinate>) -> Vec<Vec<f64>>{
@@ -867,12 +835,11 @@ struct UnitNormSingle {
 
 impl UnitNormSingle {
 
-    fn new( indices : & Vec<usize>, unit_norm: & Coordinate, unit_dot: f64, angle: f64, face_index: usize) //, unit_norms_index: usize) 
-    
+    fn new( vertices : & Vec<usize>, unit_norm: & Coordinate, unit_dot: f64, angle: f64, face_index: usize) //, unit_norms_index: usize) 
                 ->UnitNormSingle {
 
         UnitNormSingle {
-            vertices: indices.iter().map(|&x| x).collect(),
+            vertices: vertices.iter().map(|&x| x).collect(),
             unit_norm: unit_norm.copy(),
             unit_dot, 
             angle,
@@ -945,31 +912,14 @@ impl UnitNormSwapResult {
 
     fn swap( self: &UnitNormSwapResult) -> UnitNormSwapResult { 
 
-        // println!("Before UnitNormSwapResult.swap ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        // self.print();
-        // let uns0: UnitNormSingle = self.unit_norms_pair.0.copy();
-        // let uns1: UnitNormSingle = self.unit_norms_pair.1.copy();
         let index1 = self.indices.0;
         let index2 = self.indices.1;
-        // println!("UnitNormSwapResult.swap indices = ({},{})", index1, index2);
 
         let swapped = true;
-        // let first_index = uns0.unit_norms_index;
-        // let second_index = uns1.unit_norms_index;
-        // uns0.unit_norms_index = second_index;
-        // uns1.unit_norms_index = first_index;
-        // println!("Swapping indices {} <-> {}", first_index,second_index);
-        // println!("Indices = ({},{})", self.unit_norms_pair.1.unit_norms_index, self.unit_norms_pair.0.unit_norms_index);
-        let result = UnitNormSwapResult::new_from_unit_norm_singles(&self.unit_norms_pair.1,
-                                                                                     &self.unit_norms_pair.0, 
-                                                                                     (index1, index2), 
-                                                                                     swapped);
-        // println!("After UnitNormSwapResult.swap ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        // result.print();
-        // println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        result
-        
-
+        UnitNormSwapResult::new_from_unit_norm_singles(&self.unit_norms_pair.1,
+                                                        &self.unit_norms_pair.0, 
+                                                        (index1, index2), 
+                                                        swapped)
     }
 
     fn ordered_unit_norm(self : & UnitNormSwapResult) -> UnitNormSwapResult {
@@ -1005,7 +955,7 @@ impl UnitNormSwapResult {
             unp.unit_norm.z, 
             field=field, precision=precision,angle_precision = precision-2);
         }
-       
+
     }
 
         
@@ -1331,7 +1281,7 @@ fn main() {
     loop {
         let cum_count = now.elapsed().as_secs_f64();
         // *************** Start of count_a section ****************
-        let (new_coordinates, new_max_dx) = coordinates.reposition(&coordinate_differences, scale, counter, NUMBER_OF_CYCLES_BETWEEN_PRINT);
+        let (new_coordinates, new_max_dx) = coordinates.reposition(&coordinate_differences, scale);
         if counter + 1 % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
             let print_sub_timer = now.elapsed().as_secs_f64();
             println!("loop: counter = {} **************************",counter);
