@@ -1024,15 +1024,8 @@ impl UnitNorms{
 
     fn in_place_store(&mut self,  unsr: & UnitNormSwapResult) { 
 
-        // println!("///////////before in_place_store  /////////////////");
-        // self.print(5);
-        // println!(r"\\\\\\\\\\\\ before in_place_store \\\\\\\\\\\\\");
         let first_index = unsr.indices.0;
         let second_index = unsr.indices.1;
-        // println!("First index = {}, second index = {}", first_index, second_index);
-        // println!("A swap result has {} occured", match unsr.swapped {true => "", false =>"not"} );
-        // println!("Swap result ->");
-        // unsr.print();
 
         self.vertices[first_index] = vec_copy_usize(&unsr.unit_norms_pair.0.vertices);
         self.unit_norms.data[first_index] = unsr.unit_norms_pair.0.unit_norm.copy();
@@ -1045,10 +1038,6 @@ impl UnitNorms{
         self.unit_dots[second_index] = unsr.unit_norms_pair.1.unit_dot;
         self.angles[second_index] = unsr.unit_norms_pair.1.angle;
         self.face_indices[second_index] = unsr.unit_norms_pair.1.face_index;
-        // println!("//////////////after in_place_store  /////////////////");
-        // self.print(5);
-        // println!(r"\\\\\\\\\\\\\\after in_place_store  \\\\\\\\\\\\");
-
     }
 
     fn calc_face_indices(un: & CoordinateVector) -> Vec<usize>{
@@ -1091,7 +1080,6 @@ impl UnitNorms{
 
         let len= self.size;
         let mut sorted_unit_norms = UnitNorms::copy(&self);
-        // println!("%%%%%%%%%%%%%%%%% before sort %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
 
         sorted_unit_norms.print(6);
     
@@ -1099,24 +1087,9 @@ impl UnitNorms{
             let mut swapped: bool = false;
             for j in 0.. len - 1 {
                 let this_swap_result = UnitNormSwapResult::new(&sorted_unit_norms,j);
-                // println!("^^^^^^^^^^^^ before ordered swap ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
-                // this_swap_result.print();
                 let ordered_swap_result = this_swap_result.ordered_unit_norm();
-                // println!("^^^^^^^^^^^^ after ordered swap ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
-                // ordered_swap_result.print();
-                // println!("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
                 swapped = swapped | ordered_swap_result.swapped;
-                // println!("%%%%%%%%%%% after sort %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-
-                // sorted_unit_norms.print(6);
-                // println!("%%%%%%%%%%%% before inplace save %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-                // sorted_unit_norms.print(6);
-                // println!("%%%%%%%%%%%%%after inplace save%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
                 sorted_unit_norms.in_place_store(&ordered_swap_result);
-                // sorted_unit_norms.print(6);
-                // println!("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-                
-
             }
             if ! swapped {
                 break;
@@ -1132,9 +1105,6 @@ impl UnitNorms{
 
         let field:usize = precision + 4;
 
-        // println!("{}",self.unit_norms.data[3].z);
-        // println!();
-
         for idx in 0..self.size{
             println!("{} : Face# {} : <( {}, {}, {} ): unit dot = {:field$.precision$}, angle = {:field$.angle_precision$}, unorm = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
             idx,
@@ -1149,55 +1119,9 @@ impl UnitNorms{
             self.unit_norms.data[idx].z, 
             field=field, precision=precision,angle_precision = precision-2);
         }
-                
     }
 
 }
-
-// struct PlanarNorms {
-//     num_faces: usize,
-//     faces:  Vec<UnitNorms>,
-// }
-
-
-// impl PlanarNorms {
-
-//     fn new(&um: UnitNorms) -> PlanarNorms {
-
-
-//         let mut face_basis_defined: Vec<bool>;
-//         let mut num_faces: usize = 0;
-
-//         for (idx1, idx2, delta_vector) in izip!(&x.first_index,&x.second_index,&x.data){
-            
-        
-//         }
-        
-
-        
-//     }
-// }
-
-
-// struct CoordinateVector {
-
-//     size: usize,
-//     data:  Vec<Coordinate>,
-// }
-
-// struct CoordinateDifferences {
-
-//     size: usize,
-//     data:  Vec<Coordinate>,
-//     first_index : Vec <usize>,
-//     second_index : Vec <usize>,
-//     mean_magnitude : f64,
-//     magnitude_range : f64,
-//     signs: Vec <f64>,
-//     dots : Vec <f64>,
-// }
-
-
 
 
 fn main() {
