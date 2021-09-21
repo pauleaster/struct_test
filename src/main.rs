@@ -38,6 +38,20 @@ fn vec_copy_usize( data: &Vec<usize>) -> Vec<usize> {
     data.into_iter().map(|&x| x).collect()
 }
 
+fn vec_usize_print( data: &Vec<usize>) {
+
+    let size = data.len();
+
+    print!("{{ ");
+    for idx in 0..size - 1 {
+        print!("{}, ",&data[idx]);
+    }
+    if size > 0 {
+        print!("{} ",&data[size-1]);
+    }
+    print!("}}");
+}
+
 fn vec_2d_copy_usize( data: &Vec<Vec<usize>>) -> Vec<Vec<usize>> {
 
     let mut result: Vec<Vec<usize>> = Vec::new();
@@ -603,6 +617,19 @@ impl CoordinateVector {
         }
         
     }
+
+
+
+    fn remove(& mut self, index: usize) {
+        
+        if index < self.size {
+            self.data.remove(index);
+            self.size -= 1;
+        } else {
+            panic!("Index out of bounds, requesting index {} and maximum index is {}",index,self.size);
+        }
+
+    }
     
 }
 
@@ -974,6 +1001,179 @@ impl UnitNormSwapResult {
 }
 
 #[derive(Debug)]
+struct Faces {
+    vertices : Vec<Vec<usize>>,
+    unit_norms : CoordinateVector,
+    face_indices: Vec<usize>,
+    unique_face_indices: Vec<usize>,
+    size: usize,
+}
+
+impl Faces {
+
+    fn new( un : & UnitNorms) -> Faces {
+
+        let len= un.size;
+        let mut sorted_unit_norms = un.copy();
+
+        
+
+        // let mut new_face_count = unique_face_indices[unique_face_indices.len() - 1];
+        // let mut new_face_vertices: Vec<Vec<usize>> = Vec::new();
+
+        // sorted_unit_norms.print(6);
+    
+        for _i in 0.. len - 1 { // bubble sort, note that using `len` will panic, must be len - 1
+            let mut swapped: bool = false;
+            for j in 0.. len - 1 {
+                let this_swap_result = UnitNormSwapResult::new(&sorted_unit_norms,j);
+                let ordered_swap_result = this_swap_result.ordered_unit_norm();
+                swapped = swapped | ordered_swap_result.swapped;
+                sorted_unit_norms.in_place_store(&ordered_swap_result);
+            }
+            if ! swapped {
+                break;
+            }
+            
+        }
+
+
+
+        let mut face_vertices= vec_2d_copy_usize(& sorted_unit_norms.vertices);
+        let mut face_indices_copy= vec_copy_usize(& sorted_unit_norms.face_indices);
+        let mut unit_norms_copy = sorted_unit_norms.unit_norms.copy();
+        
+
+        // println!("###################################################################################################
+        // ###################################################################################################
+        // ###################################################################################################
+        // ###################################################################################################
+        // ###################################################################################################
+        // ###################################################################################################
+        // ###################################################################################################");
+
+        let mut insert = true;
+        while insert  {
+            insert = false;
+            let mut removed_indices: Vec<usize> = Vec::new();
+            let mut temp_vertices = vec_2d_copy_usize( &face_vertices);
+            for i in 0..face_vertices.len()  - 1 {
+                let face_index = face_indices_copy[i];
+                if (removed_indices.len() > 0) && removed_indices.contains(&i) {
+                    continue;
+                }
+                for j in i+1..face_vertices.len() {
+                    let this_face_index = face_indices_copy[j];
+                    if face_index != this_face_index {
+                        continue
+                    }
+                    if (removed_indices.len() == 0) | ! (removed_indices.contains(&j)) {
+                        if Faces::in_plane(&face_vertices[i],&face_vertices[j]) {
+                            Faces::insert_vertices(& mut temp_vertices, i, j);
+                            removed_indices.push(j);
+                            insert = true;
+                        }
+                    }
+                }
+            } 
+            if insert {
+                removed_indices.sort();
+                removed_indices.reverse();
+                let (fv, fic, unc) = 
+                        Faces::reduce_planar_vertices(&temp_vertices, &face_indices_copy, &unit_norms_copy, &removed_indices);
+                face_vertices = fv;
+                face_indices_copy = fic;
+                unit_norms_copy = unc;
+            }
+        }
+
+        // println!("{:?}",face_vertices);
+        // println!("###################################################################################################
+        // ###################################################################################################
+        // ###################################################################################################
+        // ###################################################################################################
+        // ###################################################################################################
+        // ###################################################################################################
+        // ###################################################################################################");
+
+        let unique_face_indices:Vec<usize> = uniquely_sorted(&face_indices_copy);
+
+        let size = face_indices_copy.len();
+
+        Faces {
+            vertices : face_vertices,
+            unit_norms : unit_norms_copy,
+            face_indices: face_indices_copy,
+            unique_face_indices,
+            size,
+        }
+        
+    }
+
+
+
+    
+
+    fn insert_vertices(all_vertices: & mut Vec<Vec<usize>>, i:usize, j:usize)  {
+
+
+        let mut face_vertices = vec_copy_usize(&all_vertices[i]);
+        let mut these_vertices = vec_copy_usize(&all_vertices[j]);
+        face_vertices.append(& mut these_vertices);
+        face_vertices = uniquely_sorted(&face_vertices);
+        all_vertices[i] = face_vertices;
+    }
+    
+    fn in_plane(planar_vertices: & Vec<usize>, these_vertices: &Vec<usize>) -> bool {
+
+        if planar_vertices.len() == 0 {
+            return true;
+        }
+        for vertex in these_vertices {
+            if planar_vertices.contains(&vertex) {
+                return true;
+            }
+        }
+        false
+    }
+    fn reduce_planar_vertices(  planar_vertices: & Vec<Vec<usize>>, 
+                                face_indices: & Vec<usize>, 
+                                unit_normals: & CoordinateVector,
+                                removed_indices: & Vec<usize>) -> (Vec<Vec<usize>>, Vec<usize>, CoordinateVector) {
+
+        let mut reduced_vertices : Vec<Vec<usize>> = vec_2d_copy_usize(planar_vertices);
+        let mut reduced_face_indices : Vec<usize> = vec_copy_usize(face_indices);
+        let mut reduced_norms: CoordinateVector = unit_normals.copy();
+        // println!("removed_indices {:?}",removed_indices);
+        for &i in removed_indices{
+            reduced_vertices.remove(i);
+            reduced_face_indices.remove(i);
+            reduced_norms.remove(i);
+        }
+        // println!("reduced_vertices{:?}",reduced_vertices);
+        (reduced_vertices, reduced_face_indices, reduced_norms)
+    }
+
+
+
+
+    fn print(&self, precision: usize) {
+
+        let field:usize = precision + 4;
+
+        for idx in 0..self.size{
+            print!("{} : Face# {}: vertices=", idx,  &self.face_indices[idx]);
+            vec_usize_print(&self.vertices[idx]);
+            println!("\nunorm = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
+            self.unit_norms.data[idx].x, self.unit_norms.data[idx].y, self.unit_norms.data[idx].z,field=field, precision=precision);
+
+        }
+    }
+}
+
+
+
+#[derive(Debug)]
 struct UnitNorms {
     vertices : Vec<Vec<usize>>,
     unit_norms : CoordinateVector,
@@ -981,7 +1181,7 @@ struct UnitNorms {
     angles: Vec<f64>,
     face_indices: Vec<usize>,
     size: usize,
-    unique_face_indices: Vec<usize>,
+    // unique_face_indices: Vec<usize>,
 }
 
 impl UnitNorms{
@@ -1009,7 +1209,7 @@ impl UnitNorms{
             size += 1;
         }
 
-        let (face_indices,unique_face_indices) = UnitNorms::calc_face_indices(&unit_norms);
+        let face_indices = UnitNorms::calc_face_indices(&unit_norms);
 
         UnitNorms {
             vertices,
@@ -1018,7 +1218,7 @@ impl UnitNorms{
             angles,
             face_indices,
             size,
-            unique_face_indices,
+            // unique_face_indices,
         }
     }
 
@@ -1032,7 +1232,7 @@ impl UnitNorms{
             angles: vec_copy_f64(&self.angles),
             face_indices: vec_copy_usize(&self.face_indices),
             size: self.size,
-            unique_face_indices:vec_copy_usize(&self.unique_face_indices),
+            // unique_face_indices:vec_copy_usize(&self.unique_face_indices),
         }
 
     }
@@ -1055,106 +1255,106 @@ impl UnitNorms{
         self.face_indices[second_index] = unsr.unit_norms_pair.1.face_index;
     }
 
-    fn insert_vertices(all_vertices: & mut Vec<Vec<usize>>, i:usize, j:usize)  {
+    // fn insert_vertices(all_vertices: & mut Vec<Vec<usize>>, i:usize, j:usize)  {
 
 
-        let mut face_vertices = vec_copy_usize(&all_vertices[i]);
-        let mut these_vertices = vec_copy_usize(&all_vertices[j]);
-        face_vertices.append(& mut these_vertices);
-        face_vertices = uniquely_sorted(&face_vertices);
-        all_vertices[i] = face_vertices;
-    }
+    //     let mut face_vertices = vec_copy_usize(&all_vertices[i]);
+    //     let mut these_vertices = vec_copy_usize(&all_vertices[j]);
+    //     face_vertices.append(& mut these_vertices);
+    //     face_vertices = uniquely_sorted(&face_vertices);
+    //     all_vertices[i] = face_vertices;
+    // }
     
-    fn in_plane(planar_vertices: & Vec<usize>, these_vertices: &Vec<usize>) -> bool {
+    // fn in_plane(planar_vertices: & Vec<usize>, these_vertices: &Vec<usize>) -> bool {
 
-        if planar_vertices.len() == 0 {
-            return true;
-        }
-        for vertex in these_vertices {
-            if planar_vertices.contains(&vertex) {
-                return true;
-            }
-        }
-        false
-    }
-    fn reduce_planar_vertices(  planar_vertices: & Vec<Vec<usize>>, 
-                                face_indices: & Vec<usize>, 
-                                removed_indices: & Vec<usize>) -> (Vec<Vec<usize>>, Vec<usize>) {
+    //     if planar_vertices.len() == 0 {
+    //         return true;
+    //     }
+    //     for vertex in these_vertices {
+    //         if planar_vertices.contains(&vertex) {
+    //             return true;
+    //         }
+    //     }
+    //     false
+    // }
+    // fn reduce_planar_vertices(  planar_vertices: & Vec<Vec<usize>>, 
+    //                             face_indices: & Vec<usize>, 
+    //                             removed_indices: & Vec<usize>) -> (Vec<Vec<usize>>, Vec<usize>) {
 
-        let mut reduced_vertices : Vec<Vec<usize>> = vec_2d_copy_usize(planar_vertices);
-        let mut reduced_face_indices : Vec<usize> = vec_copy_usize(face_indices);
-        println!("removed_indices {:?}",removed_indices);
-        for &i in removed_indices{
-            reduced_vertices.remove(i);
-            reduced_face_indices.remove(i);
-        }
-        println!("reduced_vertices{:?}",reduced_vertices);
-        (reduced_vertices, reduced_face_indices)
-    }
-
-
-    fn calc_different_faces(vertices: &Vec<Vec<usize>>, face_indices: & Vec<usize>) 
-                        -> (Vec<Vec<usize>>,Vec<usize>)  {
+    //     let mut reduced_vertices : Vec<Vec<usize>> = vec_2d_copy_usize(planar_vertices);
+    //     let mut reduced_face_indices : Vec<usize> = vec_copy_usize(face_indices);
+    //     println!("removed_indices {:?}",removed_indices);
+    //     for &i in removed_indices{
+    //         reduced_vertices.remove(i);
+    //         reduced_face_indices.remove(i);
+    //     }
+    //     println!("reduced_vertices{:?}",reduced_vertices);
+    //     (reduced_vertices, reduced_face_indices)
+    // }
 
 
-        let mut face_vertices= vec_2d_copy_usize(& vertices);
-        let mut face_indices_copy= vec_copy_usize(& face_indices);
+    // fn calc_different_faces(vertices: &Vec<Vec<usize>>, face_indices: & Vec<usize>) 
+    //                     -> (Vec<Vec<usize>>,Vec<usize>)  {
+
+
+    //     let mut face_vertices= vec_2d_copy_usize(& vertices);
+    //     let mut face_indices_copy= vec_copy_usize(& face_indices);
         
 
-        println!("###################################################################################################
-        ###################################################################################################
-        ###################################################################################################
-        ###################################################################################################
-        ###################################################################################################
-        ###################################################################################################
-        ###################################################################################################");
+    //     println!("###################################################################################################
+    //     ###################################################################################################
+    //     ###################################################################################################
+    //     ###################################################################################################
+    //     ###################################################################################################
+    //     ###################################################################################################
+    //     ###################################################################################################");
 
-        let mut insert = true;
-        while insert  {
-            insert = false;
-            let mut removed_indices: Vec<usize> = Vec::new();
-            let mut temp_vertices = vec_2d_copy_usize( &face_vertices);
-            for i in 0..face_vertices.len()  - 1 {
-                let face_index = face_indices_copy[i];
-                if (removed_indices.len() > 0) && removed_indices.contains(&i) {
-                    continue;
-                }
-                for j in i+1..face_vertices.len() {
-                    let this_face_index = face_indices_copy[j];
-                    if face_index != this_face_index {
-                        continue
-                    }
-                    if (removed_indices.len() == 0) | ! (removed_indices.contains(&j)) {
-                        if UnitNorms::in_plane(&face_vertices[i],&face_vertices[j]) {
-                            UnitNorms::insert_vertices(& mut temp_vertices, i, j);
-                            removed_indices.push(j);
-                            insert = true;
-                        }
-                    }
-                }
-            } 
-            if insert {
-                removed_indices.sort();
-                removed_indices.reverse();
-                let (fv, fic) = UnitNorms::reduce_planar_vertices(&temp_vertices, &face_indices_copy, &removed_indices);
-                face_vertices = fv;
-                face_indices_copy = fic;
-            }
-        }
+    //     let mut insert = true;
+    //     while insert  {
+    //         insert = false;
+    //         let mut removed_indices: Vec<usize> = Vec::new();
+    //         let mut temp_vertices = vec_2d_copy_usize( &face_vertices);
+    //         for i in 0..face_vertices.len()  - 1 {
+    //             let face_index = face_indices_copy[i];
+    //             if (removed_indices.len() > 0) && removed_indices.contains(&i) {
+    //                 continue;
+    //             }
+    //             for j in i+1..face_vertices.len() {
+    //                 let this_face_index = face_indices_copy[j];
+    //                 if face_index != this_face_index {
+    //                     continue
+    //                 }
+    //                 if (removed_indices.len() == 0) | ! (removed_indices.contains(&j)) {
+    //                     if UnitNorms::in_plane(&face_vertices[i],&face_vertices[j]) {
+    //                         UnitNorms::insert_vertices(& mut temp_vertices, i, j);
+    //                         removed_indices.push(j);
+    //                         insert = true;
+    //                     }
+    //                 }
+    //             }
+    //         } 
+    //         if insert {
+    //             removed_indices.sort();
+    //             removed_indices.reverse();
+    //             let (fv, fic) = UnitNorms::reduce_planar_vertices(&temp_vertices, &face_indices_copy, &removed_indices);
+    //             face_vertices = fv;
+    //             face_indices_copy = fic;
+    //         }
+    //     }
 
-        println!("{:?}",face_vertices);
-        println!("###################################################################################################
-        ###################################################################################################
-        ###################################################################################################
-        ###################################################################################################
-        ###################################################################################################
-        ###################################################################################################
-        ###################################################################################################");
-        (face_vertices,face_indices_copy)
+    //     println!("{:?}",face_vertices);
+    //     println!("###################################################################################################
+    //     ###################################################################################################
+    //     ###################################################################################################
+    //     ###################################################################################################
+    //     ###################################################################################################
+    //     ###################################################################################################
+    //     ###################################################################################################");
+    //     (face_vertices,face_indices_copy)
         
-    }
+    // }
 
-    fn calc_face_indices(un: & CoordinateVector) -> (Vec<usize>, Vec<usize>){
+    fn calc_face_indices(un: & CoordinateVector) -> Vec<usize> { //}, Vec<usize>){
 
         let mut face_indices: Vec<i32> = vec![-1;un.size];
 
@@ -1181,7 +1381,7 @@ impl UnitNorms{
 
 
         // return face_indices.iter().map(|&x| x as usize).collect();
-        return (face_indices, unique_face_indices);
+        return face_indices; //, unique_face_indices);
 
 
     }
@@ -1196,39 +1396,39 @@ impl UnitNorms{
                             self.face_indices[index])
     }
 
-    fn sort_by_face(& self) -> UnitNorms {
+    // fn sort_by_face(& self) -> UnitNorms {
 
 
-        let len= self.size;
-        let mut sorted_unit_norms = UnitNorms::copy(&self);
+    //     let len= self.size;
+    //     let mut sorted_unit_norms = UnitNorms::copy(&self);
 
-        let mut new_face_count = self.unique_face_indices[self.unique_face_indices.len() - 1];
-        let mut face_from_to: Vec<Vec<usize>> = Vec::new();
-        let mut new_face_vertices: Vec<Vec<usize>> = Vec::new();
+    //     let mut new_face_count = self.unique_face_indices[self.unique_face_indices.len() - 1];
+    //     // let mut face_from_to: Vec<Vec<usize>> = Vec::new();
+    //     let mut new_face_vertices: Vec<Vec<usize>> = Vec::new();
 
-        sorted_unit_norms.print(6);
+    //     sorted_unit_norms.print(6);
     
-        for _i in 0.. len - 1 { // bubble sort, note that using `len` will panic, must be len - 1
-            let mut swapped: bool = false;
-            for j in 0.. len - 1 {
-                let this_swap_result = UnitNormSwapResult::new(&sorted_unit_norms,j);
-                let ordered_swap_result = this_swap_result.ordered_unit_norm();
-                swapped = swapped | ordered_swap_result.swapped;
-                sorted_unit_norms.in_place_store(&ordered_swap_result);
-            }
-            if ! swapped {
-                break;
-            }
+    //     for _i in 0.. len - 1 { // bubble sort, note that using `len` will panic, must be len - 1
+    //         let mut swapped: bool = false;
+    //         for j in 0.. len - 1 {
+    //             let this_swap_result = UnitNormSwapResult::new(&sorted_unit_norms,j);
+    //             let ordered_swap_result = this_swap_result.ordered_unit_norm();
+    //             swapped = swapped | ordered_swap_result.swapped;
+    //             sorted_unit_norms.in_place_store(&ordered_swap_result);
+    //         }
+    //         if ! swapped {
+    //             break;
+    //         }
             
-        }
+    //     }
 
-        for &face_index in &self.unique_face_indices {
-            face_from_to.push(vec!(face_index));
-        }
+    //     // for &face_index in &self.unique_face_indices {
+    //     //     face_from_to.push(vec!(face_index));
+    //     // }
 
  
 
-        let diff_faces:Vec<Vec<usize>>=UnitNorms::calc_different_faces(&self.vertices, &self.face_indices);
+    //     let diff_faces:Vec<Vec<usize>>=UnitNorms::calc_different_faces(&self.vertices, &self.face_indices);
 
 
 
@@ -1236,9 +1436,9 @@ impl UnitNorms{
         
 
 
-        sorted_unit_norms
+    //     sorted_unit_norms
         
-    }
+    // }
 
     fn print(&self, precision: usize) {
 
@@ -1385,7 +1585,7 @@ fn main() {
             println!("Final values dx stop **************************");
             println!("loop: counter = {} **************************",counter);
             coordinates.print(PRECISION);
-            coordinate_differences.print(PRECISION);
+            // coordinate_differences.print(PRECISION);
             print!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}\n",
                             max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
             println!("Elpased time including final output ={:0.3} ms", 1000.0 * now.elapsed().as_secs_f64());
@@ -1421,10 +1621,12 @@ fn main() {
     }
     let edge_dots_and_unit_norms = CoordinateDifferences::get_edge_dots_and_unit_norms(&coordinate_differences.first_index,&coordinate_differences.second_index,&coordinate_differences.data);
     let unit_norms: UnitNorms = UnitNorms::new(&edge_dots_and_unit_norms);
-    unit_norms.print(PRECISION);
+    // unit_norms.print(PRECISION);
     println!("*********************************************************************************************************************************");
-    let unit_norms = unit_norms.sort_by_face();
-    unit_norms.print(PRECISION);
+    // let unit_norms = unit_norms.sort_by_face();
+    let faces:Faces = Faces::new(&unit_norms);
+    faces.print(PRECISION);
+    // unit_norms.print(PRECISION);
 
     // let print_sub_timer = now.elapsed().as_secs_f64();
     // println!("Number of loops = {}", counter);
