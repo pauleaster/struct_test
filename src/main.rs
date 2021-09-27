@@ -1,5 +1,6 @@
-use itertools::{Itertools, izip};
+use itertools::{Itertools, izip, sorted};
 
+// use core::num::dec2flt::float;
 use std::time::Instant;
 
 use rand::distributions::{Distribution, Uniform};
@@ -13,7 +14,7 @@ use std::collections::HashSet;
 use std::iter::FromIterator;
 use colour;
 
-use geo::{LineString, Polygon, prelude::Contains};
+// use geo::{LineString, Polygon, prelude::Contains};
 
 // extern crate colorful;
 
@@ -22,6 +23,8 @@ use geo::{LineString, Polygon, prelude::Contains};
 
 const MAX_NUM : f64 = 1e6;
 const MIN_NUM : f64 = 0.0;
+
+// const GEO_SCALE: f64 = 10000.0;
 
 // static mut GLOB_CLONE_COORDINATE: f64 = 0.0;
 // static mut GLOB_CLONE_COORDINATE_VECTOR: f64 = 0.0;
@@ -486,11 +489,18 @@ impl Coordinate {
 
     }
 
-    fn project_to_xy_convert_to_geo_coordinate(& self) -> geo::Coordinate<f64> {
+    fn project_to_xy_convert_to_geo_coordinate(& self, geo_scale: f64) -> geo::Coordinate<f64> {
+        // println!("x,y={},{}",self.x  * geo_scale, self.y  * geo_scale);
         geo::Coordinate {
-            x: self.x,
-            y: self.y,
+            x: self.x  * geo_scale,
+            y: self.y * geo_scale,
+            
         }
+    }
+    fn is_parallel_to(&self, coordinate: & Coordinate) -> bool {
+
+        float_equals(self.dot(&coordinate), self.mag * coordinate.mag, 1e-10)
+
     }
 
 }
@@ -622,34 +632,52 @@ impl CoordinateVector {
             let theta = 0.0;
             let phi = 0.0;
             data.push(Coordinate::new_from_spherical_coordinates(r, theta, phi));
+            colour::cyan_ln!("theta={:0.3}, phi={:0.3}", theta,phi);
             cumulative_vertices += 1;
-            let num_pi_on_4 = (num_vertices - 2) / 3;
-            if num_pi_on_4 > 0 {
-                let dtheta = 2.0 * PI / ((num_pi_on_4 + 1) as f64);
-                let phi = PI / 4.0;
-                for i in 0..num_pi_on_4 {
-                    let theta = (i as f64) * dtheta;
-                    data.push(Coordinate::new_from_spherical_coordinates(r, theta, phi));
+            if num_vertices >= 8 {
+                let num_pi_on_4 = (num_vertices - 2) / 3;
+                if num_pi_on_4 > 0 {
+                    let dtheta = 2.0 * PI / (num_pi_on_4 as f64);
+                    let phi = PI / 4.0;
+                    for i in 0..num_pi_on_4 {
+                        let theta = (i as f64) * dtheta;
+                        data.push(Coordinate::new_from_spherical_coordinates(r, theta, phi));
+                        colour::cyan_ln!("theta={:0.3}, phi={:0.3}", theta,phi);
+                    }
+                    let phi = 3.0 * PI / 4.0;
+                    for i in 0..num_pi_on_4 {
+                        let theta = (i as f64) * dtheta;
+                        if num_vertices == 5 {
+                            let theta = PI;
+                            data.push(Coordinate::new_from_spherical_coordinates(r, theta, phi));
+                            colour::cyan_ln!("theta={:0.3}, phi={:0.3}", theta,phi);
+                        } else {
+                            data.push(Coordinate::new_from_spherical_coordinates(r, theta, phi));
+                            colour::cyan_ln!("theta={:0.3}, phi={:0.3}", theta,phi);
+                        }
+                        
+                    }
+                    cumulative_vertices += 2 * num_pi_on_4;
                 }
-                let phi = 3.0 * PI / 4.0;
-                for i in 0..num_pi_on_4 {
-                    let theta = (i as f64) * dtheta;
-                    data.push(Coordinate::new_from_spherical_coordinates(r, theta, phi));
-                }
-                cumulative_vertices += 2 * num_pi_on_4;
             }
+            
             let phi = PI / 2.0;
-            colour::magenta_ln!("num_vertices = {}, num_pi_on_4 = {}, cumulative_vertices = {}", num_vertices, num_pi_on_4, cumulative_vertices);
             let num_pi_on_2 = num_vertices - cumulative_vertices - 1;
-            let dtheta = 2.0 * PI / ((num_pi_on_2 + 1) as f64);
+            let mut dtheta = 2.0 * PI / (num_pi_on_2 as f64);
+            if num_vertices == 4 {
+                dtheta = 2.0 * PI / ((num_pi_on_2 + 1) as f64);
+            }
+            // colour::magenta_ln!("num_vertices = {}, num_pi_on_4 = {}, cumulative_vertices = {}", num_vertices, num_pi_on_4, cumulative_vertices);
             for i in 0..num_pi_on_2 {
                 let theta = (i as f64) * dtheta;
                 data.push(Coordinate::new_from_spherical_coordinates(r, theta, phi));
+                colour::cyan_ln!("theta={:0.3}, phi={:0.3}", theta,phi);
             }
             cumulative_vertices += num_pi_on_2;
             let phi = PI;
             let theta = 0.0;
             data.push(Coordinate::new_from_spherical_coordinates(r, theta, phi));
+            colour::cyan_ln!("theta={:0.3}, phi={:0.3}", theta,phi);
             cumulative_vertices += 1;
             if (cumulative_vertices != num_vertices) | (data.len() != num_vertices) {
                 panic!("(cumulative_vertices != num_vertices) | (data.len() != num_vertices), ({} != {}) | ({} != {})",cumulative_vertices,num_vertices,data.len(),num_vertices);
@@ -798,22 +826,241 @@ impl CoordinateVector {
 
     }
     
-    fn project_to_xy_convert_to_geo_2d( & self) -> Vec<(f64, f64)> { 
+    fn project_to_xy_convert_to_geo_2d( & self, geo_scale: f64) -> Vec<(f64, f64)> { 
 
         let mut poly_vec = self.data.iter().map(|c| (c.x,c.y)).collect::<Vec<(f64,f64)>>();
-        poly_vec.push((self.data[0].x,self.data[0].y));
+        println!("poly x0,y0={},{}",self.data[0].x * geo_scale,self.data[0].y * geo_scale);
+        poly_vec.push((self.data[0].x * geo_scale,self.data[0].y * geo_scale));
         poly_vec
     }
 
-    fn project_to_xy_onto_geo_polygon( & self) -> Polygon<f64> {
+    // fn project_to_xy_onto_geo_polygon( & self, geo_scale: f64) -> Polygon<f64> {
 
 
-        Polygon::new(
-            LineString::from(self.project_to_xy_convert_to_geo_2d()),
-            vec![],
-        )
+    //     Polygon::new(
+    //         LineString::from(self.project_to_xy_convert_to_geo_2d(geo_scale)),
+    //         vec![],
+    //     )
+    // }
+
+    fn calc_centroid( & self) -> Coordinate {
+
+        self.sum().mult(1.0 / self.size as f64)
     }
+
+    fn get_non_and_parallel_vertices( & self) -> (bool, usize, usize, Option<Vec<(usize,usize)>>, Option<Vec<(usize,usize)>>) {
+
+        if self.size <= 2 {
+            panic!("Doesn't make sense to calculate whether two vertices or less are parallel! Size = {}",self.size);
+        }
+        let ref_coordinate = self.calc_centroid();
+        let mut non_para_count: usize = 0;
+        let mut para_count: usize = 0;
+        let mut all_perpendicular = true;
+        let mut non_parallel_indices: Vec<(usize, usize)> = Vec::new();
+        let mut parallel_indices: Vec<(usize, usize)> = Vec::new();
+        for i in 0..self.size - 1 {
+            for j in i + 1..self.size {
+                let vector1 = self.indexed_coordinate(i).sub(&ref_coordinate);
+                let vector2 = self.indexed_coordinate(i).sub(&ref_coordinate);
+                let is_para = float_equals(vector1.dot(&vector2), 0.0, 1e-10);
+                if is_para {
+                    para_count += 1;
+                    parallel_indices.push((i,j));
+                    all_perpendicular = false;
+                } else {
+                    non_para_count += 1;
+                    non_parallel_indices.push((i,j));
+                }
+            }
+        }
+        if para_count + non_para_count != self.size {
+            panic!("Parallel and non parallel count does not add up to self.size, para_count {} + non_para_count {} != self.size {}",para_count,non_para_count,self.size);
+        }
+        let opt_parallel_indices = match para_count {
+            0 => None,
+            _ => Some(parallel_indices),
+        };
+        let opt_non_parallel_indices = match non_para_count {
+            0 => None,
+            _ => Some(non_parallel_indices),
+        };
+        (all_perpendicular, non_para_count, para_count, opt_non_parallel_indices, opt_parallel_indices)
+    }
+    
+    
+    fn co_planar( & self) -> bool {
+
+        match self.size as i32 - 3 {
+            -3..=-1 => false,
+            0 => true,
+            1.. => {
+                let (all_perp, non_para_count, para_count, opt_non_parallel_indices, opt_parallel_indices) = self.get_non_and_parallel_vertices();
+                // make sure that the basis vectors are not parallel with each other!
+                let mut result = true;
+                if non_para_count > 0 {
+                    let ref_coordinate = self.calc_centroid();
+                    let (basis_index_1, basis_index_2) = match opt_non_parallel_indices {
+                        Some(v) => v[0],
+                        None => panic!("non_para_count is larger than zero, but opt_non_parallel_indices is None!, non_para_count = {}", non_para_count),
+                    };
+                    let basis_1 = self.indexed_coordinate(basis_index_1).sub(&ref_coordinate).make_unit_vector();
+                    let basis_2 = self.indexed_coordinate(basis_index_2).sub(&ref_coordinate).make_unit_vector();
+                    let normal = basis_1.unit_cross(&basis_2);
+                    for index in 3..self.size {
+                        if float_equals(self.indexed_coordinate(index).sub(&ref_coordinate).dot(&normal),0.0,1e-10) {
+                            continue;
+                        } else {
+                            result =  false;
+                            break;
+                        }
+                    }
+                } else { // non_para_count == 0!
+                    panic!("non_para_count == 0 which does not make sense!")
+                }
+                result
+            },
+            _ => panic!("self.size - 3 < -3"),
+        }
+    }
+
+
+    fn vertices_in_xy_plane(&self, opt_coordinate: & Option <& Coordinate>) -> bool {
+
+        let coordinate_in_xy = match opt_coordinate {
+            Some(coordinate) => float_equals(coordinate.z, 0.0, 1e-10),
+            None => true,
+        };
+        if !coordinate_in_xy {
+            return false
+        }
+        for i in 0..self.size {
+            if !float_equals(self.indexed_coordinate(i).z, 0.0, 1e-10) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn min_max_xy( & self) -> ((f64, f64), (f64, f64)) {
+
+        
+        let mut min_x = self.indexed_coordinate(0).x;
+        let mut min_y = self.indexed_coordinate(0).y;
+        let mut max_x = self.indexed_coordinate(0).x;
+        let mut max_y = self.indexed_coordinate(0).y;
+
+        if self.size > 1 {
+            for i in 1.. self.size {
+                let coord = self.indexed_coordinate(i);
+                if coord.x > max_x {
+                    max_x = coord.x;
+                }
+                if coord.x < min_x {
+                    min_x = coord.x;
+                }
+                if coord.y > max_y {
+                    max_y = coord.y;
+                }
+                if coord.y < min_y {
+                    min_y = coord.y;
+                }
+            }
+        }
+        ((min_x,min_y),(max_x,max_y))
+    }
+
+    
+    fn sort_polygon_xy( & self ) -> CoordinateVector {
+
+        let poly_ref = self.calc_centroid();
+        let mut angles: Vec<f64> = Vec::new();
+        let indices:Vec<f64> = (0..self.size).map(|x| x as f64).collect();
+
+        let mut sorted_poly = CoordinateVector::new_from_empty();
+
+        for i in 0..self.size {
+            let coord = self.indexed_coordinate(i).sub(&poly_ref);
+            angles.push(coord.y.atan2(coord.x));
+        }
+
+        let mut angle_indices:Vec<(&f64,&f64)> = angles.iter().zip(indices.iter()).collect();
+        angle_indices.sort_by(|a,b| a.0.partial_cmp(b.0).unwrap());
+        for ai in angle_indices.into_iter() {
+            let i = *ai.1 as usize;
+            sorted_poly.push(&self.indexed_coordinate(i));
+        }
+        sorted_poly
+    }
+
+    fn calc_polygon_beta(x: f64, y: f64, c1: &Coordinate, c2: &Coordinate) -> f64 {
+
+
+        let beta = c2.x - x + (y - c2.y) * (c1.x - c2.x) / (c1.y - c2.y);
+
+        beta
+    }
+    
+    fn polygon_xy_contains(& self, coordinate: & Coordinate) -> bool {
+        
+        // this probably only works on convex polygons which is all that is expected here!
+        if !self.vertices_in_xy_plane(&Some(coordinate)) {
+            panic!("Unexpected data found, a vertex was not in the xy plane!");
+        }
+        let ((min_x, min_y), (max_x, max_y)) = self.min_max_xy();
+
+        if (coordinate.y > max_y) | (coordinate.y < min_y) {
+            return false;
+        }
+        if (coordinate.x > max_x) | (coordinate.x < min_x) {
+            return false;
+        }
+        let x = coordinate.x;
+        let y = coordinate.y;
+
+        let mut sorted_polygon = self.sort_polygon_xy();
+        let first_vertex = sorted_polygon.indexed_coordinate(0);
+        let last_vertex = sorted_polygon.indexed_coordinate(sorted_polygon.size - 1);
+        if !first_vertex.equal(&last_vertex) {
+            sorted_polygon.push(&first_vertex);
+        }
+
+        let mut polygon_beta_values: Vec<f64>=Vec::new();
+        for i in 0..sorted_polygon.size - 1 {
+            let c1 = sorted_polygon.indexed_coordinate(i);
+            let c2 = sorted_polygon.indexed_coordinate(i+1);
+            let min_y = c1.y.min(c2.y);
+            let max_y = c1.y.max(c2.y);
+            if y >= min_y && y <= max_y {
+                polygon_beta_values.push(CoordinateVector::calc_polygon_beta(x,y,&c1,&c2));
+            }
+        }
+        if polygon_beta_values.len() != 2 {
+            panic!("polygon_beta_values.len() != 2, polygon_beta_values.len()={}",polygon_beta_values.len());
+        }
+        if polygon_beta_values[0].signum() != polygon_beta_values[1].signum() {
+            true
+        } else {
+            false
+        }
+
+    }
+
+    fn aligned_with_coordinate( &self, coordinate : & Coordinate) -> bool {
+
+        for i in 0..self.size {
+            if self.indexed_coordinate(i).is_parallel_to(coordinate) {
+                return true;
+            }
+        }
+        false
+    }
+    
 }
+
+
+
+
 
 struct EdgeSwapResult {
     edge1: Vec<f64>,
@@ -1210,7 +1457,7 @@ impl Faces {
         // let mut new_face_vertices: Vec<Vec<usize>> = Vec::new();
 
         // sorted_unit_norms.print(6);
-    
+        colour::red_ln!("{}",un.size);
         for _i in 0.. len - 1 { // bubble sort, note that using `len` will panic, must be len - 1
             let mut swapped: bool = false;
             for j in 0.. len - 1 {
@@ -1403,22 +1650,27 @@ impl Faces {
     
             let d = alpha * camera_direction.mag; 
             let cj_intersection = camera_direction.mult(alpha);
-            let mut polygon: Polygon<f64> = Polygon::new(LineString::from(vec![(0.,0.)]),
-                                        vec![],);
+            // let mut polygon: Polygon<f64> = Polygon::new(LineString::from(vec![(0.,0.)]),
+            //                             vec![],);
             let mut xy_vertices: CoordinateVector = CoordinateVector::new_from_empty();
+            let mut vertices: CoordinateVector = CoordinateVector::new_from_empty();
             if cj_dot_n.abs() > 0.001{
                 for &i in &self.vertices[idx] {
                     // println!("Projected coordinates, idx = {}",idx);
-                    let vertex = self.coordinates.indexed_coordinate(i).project_onto_xy();
-                    xy_vertices.push(&vertex);
+                    let xy_vertex = self.coordinates.indexed_coordinate(i).project_onto_xy();
+                    let vertex = self.coordinates.indexed_coordinate(i);
+                    xy_vertices.push(&xy_vertex);
+                    vertices.push(&vertex);
                     vertex.print('\n',5);
                 }
-                polygon = xy_vertices.project_to_xy_onto_geo_polygon();
+                // polygon = xy_vertices.project_to_xy_onto_geo_polygon(GEO_SCALE);
                 let xy_intersection = cj_intersection.project_onto_xy();
                 colour::yellow_ln!("Point under examination, xy projection:");
                 xy_intersection.print('\n',5);
-                let point = xy_intersection.project_to_xy_convert_to_geo_coordinate();
-                if polygon.contains(&point) {
+                // let point = xy_intersection.project_to_xy_convert_to_geo_coordinate(GEO_SCALE);
+                let my_polygon_contains = xy_vertices.polygon_xy_contains(&xy_intersection);
+                // if polygon.contains(&point) {
+                if my_polygon_contains {
                     colour::green_ln!("{} included in polygon {}",idx, face_index_camera);
                     if d > max_d {
                         max_d = d;
@@ -1536,8 +1788,8 @@ impl Faces {
             result.size -= 1;
         }
         // Reindex the face_indices
-        result.face_indices = (0..result.size).collect();
-        result.unique_face_indices = (0..result.size).collect();
+        // result.face_indices = (0..result.size).collect();
+        // result.unique_face_indices = (0..result.size).collect();
         result
     }
 
@@ -1546,12 +1798,16 @@ impl Faces {
         // let mut outer_faces: HashSet <usize>  = (0..self.size).collect();
         let mut outer_faces: HashSet <usize>  = HashSet::new();
 
-
+        colour::magenta_ln!("Number of faces before get_outer_faces = {}",self.size);
         for sa in GoldenSpiral::new(self.num_camera_angles) {
             let camera_direction = Coordinate::new_from_spherical_coordinates(1.0,sa.theta,sa.phi);
+            if self.coordinates.aligned_with_coordinate(&camera_direction) {
+                continue;
+            }
             let mut max_d = 0.0;
             let mut max_index: usize = 0;
             for idx2 in 0..self.size {
+
                 let unorm_plane = self.unit_norms.indexed_coordinate(idx2);
                 let plane_centroid = self.centroids.indexed_coordinate(idx2);
                 let ci_dot_n = plane_centroid.dot(&unorm_plane);
@@ -1560,8 +1816,8 @@ impl Faces {
         
                 let d = alpha * camera_direction.mag; 
                 let cj_intersection = camera_direction.mult(alpha);
-                let mut polygon: Polygon<f64> = Polygon::new(LineString::from(vec![(0.,0.)]),
-                                            vec![],);
+                // let mut polygon: Polygon<f64> = Polygon::new(LineString::from(vec![(0.,0.)]),
+                                            // vec![],);
                 let mut xy_vertices: CoordinateVector = CoordinateVector::new_from_empty();
                 if cj_dot_n.abs() > 0.001{
                     for &i in &self.vertices[idx2] {
@@ -1570,12 +1826,17 @@ impl Faces {
                         xy_vertices.push(&vertex);
                         // vertex.print('\n',5);
                     }
-                    polygon = xy_vertices.project_to_xy_onto_geo_polygon();
+                    // polygon = xy_vertices.project_to_xy_onto_geo_polygon(GEO_SCALE);
+                    
                     let xy_intersection = cj_intersection.project_onto_xy();
                     // colour::yellow_ln!("Point under examination, xy projection:");
                     // xy_intersection.print('\n',5);
-                    let point = xy_intersection.project_to_xy_convert_to_geo_coordinate();
-                    if polygon.contains(&point) {
+                    // let point = xy_intersection.project_to_xy_convert_to_geo_coordinate(GEO_SCALE);
+                    let my_polygon_contains = xy_vertices.polygon_xy_contains(&xy_intersection);
+
+                    if my_polygon_contains {
+
+                    // if polygon.contains(&point) {
                         // colour::green_ln!("{} included in polygon {}",idx, face_index_camera);
                         if d > max_d {
                             max_d = d;
@@ -1586,8 +1847,11 @@ impl Faces {
                     } 
                 }
             }
-            if outer_faces.insert(max_index){
-                colour::green_ln!("Adding outer face with index {}",max_index);
+            if max_d > 0.1 {
+                if outer_faces.insert(max_index){
+                    colour::green_ln!("Adding outer face with index {}",max_index);
+                }
+            
             }
             
         }
@@ -1603,6 +1867,7 @@ impl Faces {
         vec_faces_to_remove.reverse();
 
         let faces = self.full_remove(& vec_faces_to_remove);
+        colour::magenta_ln!("Number of faces after get_outer_faces = {}",faces.size);
         faces
     }
 
@@ -1884,12 +2149,13 @@ fn main() {
     let now = Instant::now();
     const SCALE : f64 =  0.1;
     const STOP_POWER : i32 = 10;
-    let stop = 10_f64.powi(-STOP_POWER);
+    let stop = 15_f64.powi(-STOP_POWER);
     const PRECISION: usize = STOP_POWER as usize + 1; 
     const USE_RANDOM_VERTICES : bool = false;
     const USE_SYMMETRIC_VERTICES : bool = true;
     const CAMERA_ANGLES: usize = 1000;
     let mut coordinates : CoordinateVector;
+    
 
 
     // let data = vec![x1,x2,x3,x4,x5,x6];
