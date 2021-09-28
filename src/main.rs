@@ -139,7 +139,7 @@ impl Iterator for GoldenSpiral {
 
     fn next( &mut self) -> Option<Self::Item> {
 
-        if self.curr.index < self.curr.num_points as i32{
+        if self.curr.index < (self.curr.num_points - 1) as i32{
             self.curr.index += 1;
             self.curr.theta = PI * (1.0 + 5.0_f64.sqrt() * self.curr.index as f64 );
             self.curr.phi = (1.0 - 2.0 * self.curr.index as f64 / self.curr.num_points as f64).acos();
@@ -684,6 +684,21 @@ impl CoordinateVector {
             }
             return CoordinateVector::new(data);
         }
+    }
+
+    fn new_from_golden_spiral(num_vertices: usize) -> CoordinateVector {
+
+        if num_vertices < 3 {
+            panic!("Must have more than two vertices")
+        } else {
+            let mut cv : CoordinateVector = CoordinateVector::new_from_empty(); 
+
+            for sa in GoldenSpiral::new(num_vertices) {
+                cv.push(&Coordinate::new_from_spherical_coordinates(1.0,sa.theta,sa.phi));
+            }
+            cv
+        }
+
     }
 
 
