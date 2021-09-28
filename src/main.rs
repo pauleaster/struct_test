@@ -1,3 +1,4 @@
+use colour::unnamed::Colour;
 use itertools::{Itertools, izip};
 
 // use core::num::dec2flt::float;
@@ -10,7 +11,7 @@ use std::f64::consts::PI;
 use std::env;
 use std::process::exit as exit;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 
 
@@ -488,14 +489,15 @@ impl Coordinate {
 
     }
 
-    fn project_to_xy_convert_to_geo_coordinate(& self, geo_scale: f64) -> geo::Coordinate<f64> {
-        // println!("x,y={},{}",self.x  * geo_scale, self.y  * geo_scale);
-        geo::Coordinate {
-            x: self.x  * geo_scale,
-            y: self.y * geo_scale,
+    // fn project_to_xy_convert_to_geo_coordinate(& self, geo_scale: f64) -> geo::Coordinate<f64> {
+    //     // println!("x,y={},{}",self.x  * geo_scale, self.y  * geo_scale);
+    //     geo::Coordinate {
+    //         x: self.x  * geo_scale,
+    //         y: self.y * geo_scale,
             
-        }
-    }
+    //     }
+    // }
+
     fn is_parallel_to(&self, coordinate: & Coordinate) -> bool {
 
         float_equals(self.dot(coordinate), self.mag * coordinate.mag, 1e-10)
@@ -544,8 +546,8 @@ impl CoordinateVector {
             panic!("Must have more than one vertex")
         } else {
 
-            let mut data : Vec<Coordinate> = Vec::new(); 
-            for _ in 0..vertices{
+            let mut data : Vec<Coordinate> = vec![Coordinate::new(0.0, 0.0, 1.0), Coordinate::new_random().project_onto_xz().make_unit_vector()]; 
+            for _ in 2..vertices{
                 data.push(Coordinate::new_random());
             }
             if data.len() != vertices{
@@ -692,7 +694,12 @@ impl CoordinateVector {
             let mut cv : CoordinateVector = CoordinateVector::new_from_empty(); 
 
             for sa in GoldenSpiral::new(num_vertices) {
-                cv.push(&Coordinate::new_from_spherical_coordinates(1.0,sa.theta,sa.phi));
+                let mut c = Coordinate::new_from_spherical_coordinates(1.0,sa.theta,sa.phi);
+                if sa.index == 1 {
+                    c = c.project_onto_xz().make_unit_vector();
+                }
+                cv.push(&c);
+
             }
             cv
         }
@@ -1616,9 +1623,31 @@ impl Faces {
         (reduced_vertices, reduced_face_indices, reduced_norms)
     }
 
+    fn get_number_of_faces_of_size( & self) -> (Vec<usize> , Vec<usize>) {
+        
+        let mut sizes:Vec<usize> = Vec::new();
+        let mut number_of_faces:Vec<usize> = Vec::new();
+
+        for v in &self.vertices {
+            let size = v.len(); // number of vertices in this face
+            let opt_pos = sizes.iter().position(|&x| x == size);
+            match opt_pos {
+                Some(idx) => // this size is already in the sizes vector
+                    number_of_faces[idx] += 1, // increment the face count
+                None =>  {// this size is not in the sizes vector 
+                    sizes.push(size); // add to sizes vector
+                    number_of_faces.push(1); // initialise the face count to 1
+                }
+            }
+        }
+            
+        (sizes, number_of_faces)
+    }
+
     fn print(&self, precision: usize) {
 
         let field:usize = precision + 4;
+
 
         colour::yellow_ln!("Faces::print()");
 
@@ -1634,8 +1663,12 @@ impl Faces {
             let n_dot_c = self.unit_norms.data[idx].dot(& u_centroid);
             colour::dark_cyan_ln!(" <unorm,ucentroid> = {:field$.precision$}",
             n_dot_c,field=field, precision=precision);
+        }
 
-
+        let (sizes, number_of_faces) = self.get_number_of_faces_of_size();
+        println!("");
+        for idx in 0..sizes.len() {
+            colour::blue_ln!("Vertices in face = {}, number of faces = {}", sizes[idx],number_of_faces[idx]);
         }
     }
 
@@ -2110,6 +2143,13 @@ impl UnitNorms {
     }
 
 }
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+enum InitialiseKey {
+    Random,
+    Fixed,
+    Symmetric,
+    GoldenSpiral,
+}
 
 
 fn main() {
@@ -2124,48 +2164,80 @@ fn main() {
 
     // Dodecahedron: d12 20 vertices, 12 faces
     // Icosahedron: d20 12 vertices, 20 faces
+
+    let mut initialise_map: HashMap<InitialiseKey, char> = HashMap:: new();
+    initialise_map.insert(InitialiseKey::Random,'r');
+    initialise_map.insert(InitialiseKey::Fixed,'f');
+    initialise_map.insert(InitialiseKey::Symmetric,'s');
+    initialise_map.insert(InitialiseKey::GoldenSpiral,'g');
+
     let args: Vec<String> = env::args().collect();
 
     if args.len() <= 1 {
         println!("One argument is needed to specify the number of vertices which must be larger or equal to 3.");
         exit(1);
     }
-    let number_of_vertices: usize = match args[1].parse() {
-        Ok(num) => { 
-            if num < 3 {
-                println!("The number of vertices must be larger than or equal to 3.");
-                exit(1);
-            } else {
-                num
-            }
-        },
-        Err(_e) => {
-            println!("The first argument must be the number of vertices and must be larger than or equal to 3.");
-            exit(1)
+    let mut opt_number_of_vertices:Option<usize> = None;
+    let mut vertex_count_found = false;
+    let mut initialisation_method: InitialiseKey = InitialiseKey::Symmetric;
+
+
+    for arg in args.iter().take(args.len().min(3)).skip(1) {
+        colour::red_ln!("arg = {}",arg);
+        let mut this_arg_number =false;
+        match arg.parse::<usize>() {
+            Ok(value) => {
+                opt_number_of_vertices = Some(value);
+                vertex_count_found = true;
+                this_arg_number = true;
+            },
+            Err(_e) => (),
         }
-    };
-    
+        if !this_arg_number {
+            match arg.parse::<char>() {
+                Ok(value) => {
+                    for (&key, &v) in &initialise_map {
+                        if v==value{
+                            initialisation_method = key;
+                            colour::magenta_ln!("Found key, character='{} and key = {:?}",v,key);
+                        }
+                    }
+                },
+                Err(_e) => (),
+            }
+        }
+    }
+    let number_of_vertices = opt_number_of_vertices.unwrap();
+    if !vertex_count_found {
+        panic!("Please enter the number of vertices in one of the first two command line arguments.")
+    }
+    if vertex_count_found && number_of_vertices < 3 {
+        panic!("The number of vertices must be larger than or equal to 3, number_of_vertices={}.",number_of_vertices);
+    }
+    if number_of_vertices > 30 {
+        panic!("You don't really want to run this with so many vertices, best to limit to a max of 30, number_of_vertices={}.",number_of_vertices);
+    }
+    colour::green_ln!("The number of vertices is {}, the initialisation method is {:?}", number_of_vertices, initialisation_method);
 
     let now = Instant::now();
     const SCALE : f64 =  0.1;
     const STOP_POWER : i32 = 10;
     let stop = 15_f64.powi(-STOP_POWER);
     const PRECISION: usize = STOP_POWER as usize + 1; 
-    const USE_RANDOM_VERTICES : bool = false;
-    const USE_SYMMETRIC_VERTICES : bool = true;
+
     const CAMERA_ANGLES: usize = 1000;
-    let mut coordinates : CoordinateVector;
+    
     
 
 
     // let data = vec![x1,x2,x3,x4,x5,x6];
-    if USE_RANDOM_VERTICES {
-        coordinates = CoordinateVector::new_from_random_vertices(number_of_vertices);
-    } else if USE_SYMMETRIC_VERTICES {
-        coordinates = CoordinateVector::new_from_symmetric_fixed_sequence(number_of_vertices);
-    } else {
-        coordinates = CoordinateVector::new_from_fixed_sequence(number_of_vertices);
-        }
+    let mut coordinates = match initialisation_method {
+        InitialiseKey::Random => CoordinateVector::new_from_random_vertices(number_of_vertices),
+        InitialiseKey::Fixed => CoordinateVector::new_from_fixed_sequence(number_of_vertices),
+        InitialiseKey::Symmetric => CoordinateVector::new_from_symmetric_fixed_sequence(number_of_vertices),
+        InitialiseKey::GoldenSpiral => CoordinateVector::new_from_golden_spiral(number_of_vertices),
+    };
+    
     
     
     // let mut new_coordinates = CoordinateVector::new(data);
