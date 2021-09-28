@@ -1,4 +1,5 @@
-use itertools::{Itertools, izip, sorted};
+use colour::unnamed::Colour;
+use itertools::{Itertools, izip};
 
 // use core::num::dec2flt::float;
 use std::time::Instant;
@@ -10,9 +11,9 @@ use std::f64::consts::PI;
 use std::env;
 use std::process::exit as exit;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
-use colour;
+
 
 // use geo::{LineString, Polygon, prelude::Contains};
 
@@ -45,18 +46,18 @@ fn float_equals(x: f64, y: f64, eps: f64) -> bool{
     (x-y).abs() < eps.abs()
 }
 
-fn vec_copy_usize( data: &Vec<usize>) -> Vec<usize> {
+fn vec_copy_usize( data: &[usize]) -> Vec<usize> {
 
-    data.into_iter().map(|&x| x).collect()
+    data.iter().copied().collect()
 }
 
-fn vec_usize_print( data: &Vec<usize>) {
+fn vec_usize_print( data: &[usize]) {
 
     let size = data.len();
 
     colour::dark_red!("( ");
-    for idx in 0..size - 1 {
-        colour::dark_red!("{}, ",&data[idx]);
+    for val in data.iter().take(size - 1) {
+        colour::dark_red!("{}, ",val);
     }
     if size > 0 {
         colour::dark_red!("{} ",&data[size-1]);
@@ -64,12 +65,12 @@ fn vec_usize_print( data: &Vec<usize>) {
     colour::dark_red!(")");
 }
 
-fn vec_2d_copy_usize( data: &Vec<Vec<usize>>) -> Vec<Vec<usize>> {
+fn vec_2d_copy_usize( data: &[Vec<usize>]) -> Vec<Vec<usize>> {
 
     let mut result: Vec<Vec<usize>> = Vec::new();
 
 
-    for uvec in data.iter().map(|x| vec_copy_usize(&x)){
+    for uvec in data.iter().map(|x| vec_copy_usize(x)){
         result.push(uvec);
     }
 
@@ -77,12 +78,12 @@ fn vec_2d_copy_usize( data: &Vec<Vec<usize>>) -> Vec<Vec<usize>> {
 
 }
 
-fn vec_copy_f64( data: &Vec<f64>) -> Vec<f64> {
+fn vec_copy_f64( data: &[f64]) -> Vec<f64> {
 
-    data.into_iter().map(|&x| x).collect()
+    data.iter().copied().collect()
 }
 
-fn uniquely_sorted( vector: & Vec<usize>) -> Vec<usize>{
+fn uniquely_sorted( vector: &[usize]) -> Vec<usize>{
     HashSet::<&usize>::from_iter(vector)
     .into_iter()
     .sorted()
@@ -139,7 +140,7 @@ impl Iterator for GoldenSpiral {
 
     fn next( &mut self) -> Option<Self::Item> {
 
-        if self.curr.index < self.curr.num_points as i32{
+        if self.curr.index < (self.curr.num_points - 1) as i32{
             self.curr.index += 1;
             self.curr.theta = PI * (1.0 + 5.0_f64.sqrt() * self.curr.index as f64 );
             self.curr.phi = (1.0 - 2.0 * self.curr.index as f64 / self.curr.num_points as f64).acos();
@@ -153,6 +154,7 @@ impl Iterator for GoldenSpiral {
 
 }
 
+pub type NonAndParallelVertices = (bool, usize, usize, Option<Vec<(usize,usize)>>, Option<Vec<(usize,usize)>>);
 
 
 #[derive(Debug)]
@@ -171,14 +173,12 @@ impl Coordinate {
 
     fn new(x : f64, y: f64, z: f64 ) -> Coordinate{
 
-        let result = Coordinate {
+        Coordinate {
             x, 
             y,
             z,
             mag : Coordinate::calc_mag(x,y,z),
-        };
-
-        result
+        }
     }
 
     fn new_from_vector( coordinate : Vec<f64>) -> Coordinate {
@@ -192,15 +192,15 @@ impl Coordinate {
         let mut y:f64 = 0.0;
         let mut z:f64 = 0.0;
 
-        for idx in 0..size{
+        for (idx, &value) in  coordinate.iter().enumerate().take(size) {
             if idx == 0 {
-                x = coordinate[idx];
+                x = value;
             }
             if idx == 1 {
-                y = coordinate[idx];
+                y = value;
             }
             if idx == 2 {
-                z = coordinate[idx];
+                z = value;
             }
         }
         Coordinate::new(x,y,z)
@@ -307,9 +307,9 @@ impl Coordinate {
 
     fn add(&self, pt:&Coordinate) -> Coordinate {
 
-        let x:f64 = &self.x + &pt.x;
-        let y:f64 = &self.y + &pt.y;
-        let z:f64 = &self.z + &pt.z;
+        let x:f64 = self.x + pt.x;
+        let y:f64 = self.y + pt.y;
+        let z:f64 = self.z + pt.z;
 
 
         Coordinate {
@@ -339,9 +339,9 @@ impl Coordinate {
 
     fn calc_mag(x:f64,y:f64,z:f64) -> f64 {
         
-        let result = (x.powi(2)  + y.powi(2) + z.powi(2)).sqrt();
+        (x.powi(2)  + y.powi(2) + z.powi(2)).sqrt()
 
-        result
+
     }
 
     fn mult(&self, scale: f64) -> Coordinate {
@@ -383,12 +383,12 @@ impl Coordinate {
         
         let eps = 1e-6_f64;
 
-        return self.sub(&pt).mag < eps
+        self.sub(pt).mag < eps
 
     }
 
     fn equal_or_inverted( &self, pt: &Coordinate) -> bool {     
-        self.equal(&pt) | self.equal(&pt.mult(-1.0))
+        self.equal(pt) | self.equal(&pt.mult(-1.0))
     }
 
     fn print(&self, ch:char, precision: usize) {
@@ -453,10 +453,10 @@ impl Coordinate {
     fn get_by_index( self: &Coordinate, index: usize) -> f64 {
 
         match index {
-            0 => return self.x,
-            1 => return self.y,
-            2 => return self.z,
-            3 => return self.mag,
+            0 => self.x,
+            1 => self.y,
+            2 => self.z,
+            3 => self.mag,
             _ => panic!("Coordinate::get_by_index must have an index <=3, the value of index is {}",index),
         }
     }
@@ -469,7 +469,7 @@ impl Coordinate {
             panic!("2D determinant called with non zero z values, a.z = {:0.8}, b.z = {:0.8}", a.z,b.z);
         }
         else {
-            return a.x * b.y - a.y * b.x;
+            a.x * b.y - a.y * b.x
         }
     }
 
@@ -483,23 +483,24 @@ impl Coordinate {
         b2d.z = 0.0;
         c2d.z = 0.0;
 
-        return a.z * Coordinate::calculate_2d_determinant(&b2d, &c2d) 
+        a.z * Coordinate::calculate_2d_determinant(&b2d, &c2d) 
             - b.z * Coordinate::calculate_2d_determinant(&a2d, &c2d) 
-            + c.z * Coordinate::calculate_2d_determinant(&a2d, &b2d);
+            + c.z * Coordinate::calculate_2d_determinant(&a2d, &b2d)
 
     }
 
-    fn project_to_xy_convert_to_geo_coordinate(& self, geo_scale: f64) -> geo::Coordinate<f64> {
-        // println!("x,y={},{}",self.x  * geo_scale, self.y  * geo_scale);
-        geo::Coordinate {
-            x: self.x  * geo_scale,
-            y: self.y * geo_scale,
+    // fn project_to_xy_convert_to_geo_coordinate(& self, geo_scale: f64) -> geo::Coordinate<f64> {
+    //     // println!("x,y={},{}",self.x  * geo_scale, self.y  * geo_scale);
+    //     geo::Coordinate {
+    //         x: self.x  * geo_scale,
+    //         y: self.y * geo_scale,
             
-        }
-    }
+    //     }
+    // }
+
     fn is_parallel_to(&self, coordinate: & Coordinate) -> bool {
 
-        float_equals(self.dot(&coordinate), self.mag * coordinate.mag, 1e-10)
+        float_equals(self.dot(coordinate), self.mag * coordinate.mag, 1e-10)
 
     }
 
@@ -518,12 +519,11 @@ impl CoordinateVector {
     
     fn new(data : Vec<Coordinate> ) -> CoordinateVector{
 
-        let result = CoordinateVector{
+        CoordinateVector{
 
             size: data.len(),
             data, // note this should move data
-        };
-        result
+        }
     }
 
 
@@ -546,8 +546,8 @@ impl CoordinateVector {
             panic!("Must have more than one vertex")
         } else {
 
-            let mut data : Vec<Coordinate> = Vec::new(); 
-            for _ in 0..vertices{
+            let mut data : Vec<Coordinate> = vec![Coordinate::new(0.0, 0.0, 1.0), Coordinate::new_random().project_onto_xz().make_unit_vector()]; 
+            for _ in 2..vertices{
                 data.push(Coordinate::new_random());
             }
             if data.len() != vertices{
@@ -682,8 +682,28 @@ impl CoordinateVector {
             if (cumulative_vertices != num_vertices) | (data.len() != num_vertices) {
                 panic!("(cumulative_vertices != num_vertices) | (data.len() != num_vertices), ({} != {}) | ({} != {})",cumulative_vertices,num_vertices,data.len(),num_vertices);
             }
-            return CoordinateVector::new(data);
+            CoordinateVector::new(data)
         }
+    }
+
+    fn new_from_golden_spiral(num_vertices: usize) -> CoordinateVector {
+
+        if num_vertices < 3 {
+            panic!("Must have more than two vertices")
+        } else {
+            let mut cv : CoordinateVector = CoordinateVector::new_from_empty(); 
+
+            for sa in GoldenSpiral::new(num_vertices) {
+                let mut c = Coordinate::new_from_spherical_coordinates(1.0,sa.theta,sa.phi);
+                if sa.index == 1 {
+                    c = c.project_onto_xz().make_unit_vector();
+                }
+                cv.push(&c);
+
+            }
+            cv
+        }
+
     }
 
 
@@ -695,7 +715,7 @@ impl CoordinateVector {
         for coordinate in &self.data {
             data.push(coordinate.clone())
         }
-        return CoordinateVector::new(data);
+        CoordinateVector::new(data)
     }
 
     fn copy(&self) -> CoordinateVector {
@@ -716,7 +736,7 @@ impl CoordinateVector {
     fn push( & mut self, pt : & Coordinate) {
 
         self.data.push(pt.clone());
-        self.size = self.size + 1;
+        self.size += 1;
 
     }
 
@@ -724,7 +744,7 @@ impl CoordinateVector {
         
         let mut sum = Coordinate::zero();
         for coordinate in &self.data {
-            sum = sum.add(&coordinate);
+            sum = sum.add(coordinate);
         }
         sum
     }
@@ -802,13 +822,13 @@ impl CoordinateVector {
             new_result.data[idx] = result.data[idx].add(&dx_parallel.data[idx]).make_unit_vector();
             true_dx.data[idx] = new_result.data[idx].sub(&result.data[idx]);
         }
-        return (new_result, true_dx.max_mag());
+        (new_result, true_dx.max_mag())
     }
 
     fn indexed_coordinate(&self, index: usize) -> Coordinate{
 
         if index < self.size {
-            return self.data[index].copy();
+            self.data[index].copy()
         } else {
             panic!("Index out of bounds, requesting index {} and maximum index is {}",index,self.size);
         }
@@ -848,7 +868,9 @@ impl CoordinateVector {
         self.sum().mult(1.0 / self.size as f64)
     }
 
-    fn get_non_and_parallel_vertices( & self) -> (bool, usize, usize, Option<Vec<(usize,usize)>>, Option<Vec<(usize,usize)>>) {
+    
+
+    fn get_non_and_parallel_vertices( & self) -> NonAndParallelVertices {
 
         if self.size <= 2 {
             panic!("Doesn't make sense to calculate whether two vertices or less are parallel! Size = {}",self.size);
@@ -996,9 +1018,7 @@ impl CoordinateVector {
     fn calc_polygon_beta(x: f64, y: f64, c1: &Coordinate, c2: &Coordinate) -> f64 {
 
 
-        let beta = c2.x - x + (y - c2.y) * (c1.x - c2.x) / (c1.y - c2.y);
-
-        beta
+        c2.x - x + (y - c2.y) * (c1.x - c2.x) / (c1.y - c2.y)
     }
     
     fn polygon_xy_contains(& self, coordinate: & Coordinate) -> bool {
@@ -1038,11 +1058,7 @@ impl CoordinateVector {
         if polygon_beta_values.len() != 2 {
             panic!("polygon_beta_values.len() != 2, polygon_beta_values.len()={}",polygon_beta_values.len());
         }
-        if polygon_beta_values[0].signum() != polygon_beta_values[1].signum() {
-            true
-        } else {
-            false
-        }
+        polygon_beta_values[0].signum() != polygon_beta_values[1].signum()
 
     }
 
@@ -1206,34 +1222,34 @@ impl CoordinateDifferences{
         println!("max(|x|) - min(|x|) = {:field$.precision$}",&self.magnitude_range, precision=precision, field=field);
     }
 
-    fn edge_copy( edge: & Vec <f64>) -> Vec<f64> {
+    fn edge_copy( edge: &[f64]) -> Vec<f64> {
 
-        return edge.iter().map(|x| *x).collect()
+        return edge.iter().copied().collect()
     }
 
-    fn order_edges( first_edge: & Vec<f64> ,  second_edge: & Vec<f64>) -> EdgeSwapResult {
+    fn order_edges( first_edge: &[f64] ,  second_edge: &[f64]) -> EdgeSwapResult {
         if first_edge[0] < second_edge[0] { 
-            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+            EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false}
         } else if first_edge[0] > second_edge[0] {
-            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+            EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true}
         } else if first_edge[1] < second_edge[1] {
-            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+            EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false}
         } else if first_edge[1] > second_edge[1] {
-            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+            EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true}
         } else if first_edge[2] < second_edge[2] {
-            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false};
+            EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(first_edge), edge2 : CoordinateDifferences::edge_copy(second_edge), swapped : false}
         } else {
-            return EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true};
+            EdgeSwapResult{edge1 : CoordinateDifferences::edge_copy(second_edge), edge2 : CoordinateDifferences::edge_copy(first_edge), swapped : true}
         }
     }
 
-    fn edge_vector_copy( edge_data: & Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+    fn edge_vector_copy( edge_data: &[Vec<f64>]) -> Vec<Vec<f64>> {
 
         return edge_data.iter().map(|x| CoordinateDifferences::edge_copy(x)).collect()
     }
 
     
-    fn sort_edge_dots(edge_data: & Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+    fn sort_edge_dots(edge_data: &[Vec<f64>]) -> Vec<Vec<f64>> {
 
         let len: usize = edge_data.len();
         let mut sorted_edges = CoordinateDifferences::edge_vector_copy(edge_data);
@@ -1245,7 +1261,7 @@ impl CoordinateDifferences{
                 let this_swap_result = CoordinateDifferences::order_edges(&sorted_edges[j], &sorted_edges[j+1]);
                 sorted_edges[j] = this_swap_result.edge1;
                 sorted_edges[j+1] = this_swap_result.edge2;
-                swapped = swapped | this_swap_result.swapped;
+                swapped |= this_swap_result.swapped;
             }
             if ! swapped {
                 break;
@@ -1254,7 +1270,7 @@ impl CoordinateDifferences{
         sorted_edges
     }
 
-    fn get_edge_dots_and_unit_norms(first_index:&Vec <usize>,second_index:&Vec <usize>,data:&Vec<Coordinate>) -> Vec<Vec<f64>>{
+    fn get_edge_dots_and_unit_norms(first_index:&[usize],second_index:&[usize],data:&[Coordinate]) -> Vec<Vec<f64>>{
 
 
         let mut result : Vec<Vec<f64>> = Vec::new();
@@ -1304,11 +1320,11 @@ struct UnitNormSingle {
 
 impl UnitNormSingle {
 
-    fn new( vertices : & Vec<usize>, unit_norm: & Coordinate, unit_dot: f64, angle: f64, face_index: usize) //, unit_norms_index: usize) 
+    fn new( vertices : &[usize], unit_norm: & Coordinate, unit_dot: f64, angle: f64, face_index: usize) //, unit_norms_index: usize) 
                 ->UnitNormSingle {
 
         UnitNormSingle {
-            vertices: vertices.iter().map(|&x| x).collect(),
+            vertices: vertices.iter().copied().collect(),
             unit_norm: unit_norm.copy(),
             unit_dot, 
             angle,
@@ -1463,7 +1479,7 @@ impl Faces {
             for j in 0.. len - 1 {
                 let this_swap_result = UnitNormSwapResult::new(&sorted_unit_norms,j);
                 let ordered_swap_result = this_swap_result.ordered_unit_norm();
-                swapped = swapped | ordered_swap_result.swapped;
+                swapped |= ordered_swap_result.swapped;
                 sorted_unit_norms.in_place_store(&ordered_swap_result);
             }
             if ! swapped {
@@ -1494,7 +1510,7 @@ impl Faces {
             let mut temp_vertices = vec_2d_copy_usize( &face_vertices);
             for i in 0..face_vertices.len()  - 1 {
                 let face_index = face_indices_copy[i];
-                if (removed_indices.len() > 0) && removed_indices.contains(&i) {
+                if !removed_indices.is_empty() && removed_indices.contains(&i) {
                     continue;
                 }
                 for j in i+1..face_vertices.len() {
@@ -1502,17 +1518,15 @@ impl Faces {
                     if face_index != this_face_index {
                         continue
                     }
-                    if (removed_indices.len() == 0) | ! (removed_indices.contains(&j)) {
-                        if Faces::in_plane(&face_vertices[i],&face_vertices[j]) {
-                            Faces::insert_vertices(& mut temp_vertices, i, j);
-                            removed_indices.push(j);
-                            insert = true;
-                        }
+                    if removed_indices.is_empty() | ! (removed_indices.contains(&j)) && Faces::in_plane(&face_vertices[i],&face_vertices[j]) {
+                        Faces::insert_vertices(& mut temp_vertices, i, j);
+                        removed_indices.push(j);
+                        insert = true;
                     }
                 }
             } 
             if insert {
-                removed_indices.sort();
+                removed_indices.sort_unstable();
                 removed_indices.reverse();
                 let (fv, fic, unc) = 
                         Faces::reduce_planar_vertices(&temp_vertices, &face_indices_copy, &unit_norms_copy, &removed_indices);
@@ -1540,7 +1554,7 @@ impl Faces {
         let centroids: CoordinateVector = Faces::calculate_centroids(& face_vertices, & un.coordinates, size);
     
         
-        let result = Faces {
+        Faces {
             vertices : face_vertices,
             unit_norms : unit_norms_copy,
             face_indices: face_indices_copy,
@@ -1549,17 +1563,16 @@ impl Faces {
             coordinates: un.coordinates.copy(),
             size,
             num_camera_angles: un.num_camera_angles,
-        };
-        result
+        }
     }
 
-    fn calculate_centroids(vertices: &Vec<Vec<usize>>, coordinates: &CoordinateVector, size: usize) -> CoordinateVector {
+    fn calculate_centroids(vertices: &[Vec<usize>], coordinates: &CoordinateVector, size: usize) -> CoordinateVector {
 
         let mut centroids = CoordinateVector::new_from_empty();
-        for idx in 0.. size {
+        for these_vertices in vertices.iter().take(size) {
             let mut centroid = Coordinate::zero();
-            let vertex_count = vertices[idx].len();
-            for vertex in vec_copy_usize(&vertices[idx]) {
+            let vertex_count = these_vertices.len();
+            for vertex in vec_copy_usize(these_vertices) {
                 centroid = centroid.add(&coordinates.indexed_coordinate(vertex));
             }
             let centroid = centroid.mult( 1.0 / (vertex_count as f64));
@@ -1580,22 +1593,22 @@ impl Faces {
         all_vertices[i] = face_vertices;
     }
     
-    fn in_plane(planar_vertices: & Vec<usize>, these_vertices: &Vec<usize>) -> bool {
+    fn in_plane(planar_vertices: &[usize], these_vertices: &[usize]) -> bool {
 
-        if planar_vertices.len() == 0 {
+        if planar_vertices.is_empty() {
             return true;
         }
         for vertex in these_vertices {
-            if planar_vertices.contains(&vertex) {
+            if planar_vertices.contains(vertex) {
                 return true;
             }
         }
         false
     }
-    fn reduce_planar_vertices(  planar_vertices: & Vec<Vec<usize>>, 
-                                face_indices: & Vec<usize>, 
+    fn reduce_planar_vertices(  planar_vertices: &[Vec<usize>], 
+                                face_indices: &[usize], 
                                 unit_normals: & CoordinateVector,
-                                removed_indices: & Vec<usize>) -> (Vec<Vec<usize>>, Vec<usize>, CoordinateVector) {
+                                removed_indices: &[usize]) -> (Vec<Vec<usize>>, Vec<usize>, CoordinateVector) {
 
         let mut reduced_vertices : Vec<Vec<usize>> = vec_2d_copy_usize(planar_vertices);
         let mut reduced_face_indices : Vec<usize> = vec_copy_usize(face_indices);
@@ -1610,27 +1623,52 @@ impl Faces {
         (reduced_vertices, reduced_face_indices, reduced_norms)
     }
 
+    fn get_number_of_faces_of_size( & self) -> (Vec<usize> , Vec<usize>) {
+        
+        let mut sizes:Vec<usize> = Vec::new();
+        let mut number_of_faces:Vec<usize> = Vec::new();
+
+        for v in &self.vertices {
+            let size = v.len(); // number of vertices in this face
+            let opt_pos = sizes.iter().position(|&x| x == size);
+            match opt_pos {
+                Some(idx) => // this size is already in the sizes vector
+                    number_of_faces[idx] += 1, // increment the face count
+                None =>  {// this size is not in the sizes vector 
+                    sizes.push(size); // add to sizes vector
+                    number_of_faces.push(1); // initialise the face count to 1
+                }
+            }
+        }
+            
+        (sizes, number_of_faces)
+    }
+
     fn print(&self, precision: usize) {
 
         let field:usize = precision + 4;
 
+
         colour::yellow_ln!("Faces::print()");
-        let z_coordinate = Coordinate::new(0.0,0.0,1.0);
+
         for idx in 0..self.size{
             colour::dark_yellow!("{} : ", idx);
             colour::red!("Face# {}: vertices=", &self.face_indices[idx]);
             vec_usize_print(&self.vertices[idx]);
             colour::dark_green!(" unorm = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
                 self.unit_norms.data[idx].x, self.unit_norms.data[idx].y, self.unit_norms.data[idx].z,field=field, precision=precision);
-            let n_dot_z = self.unit_norms.data[idx].dot(& z_coordinate);
             colour::red!(" centroids = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
                 self.centroids.data[idx].x, self.centroids.data[idx].y, self.centroids.data[idx].z,field=field, precision=precision);
             let u_centroid = self.centroids.data[idx].make_unit_vector();
             let n_dot_c = self.unit_norms.data[idx].dot(& u_centroid);
             colour::dark_cyan_ln!(" <unorm,ucentroid> = {:field$.precision$}",
             n_dot_c,field=field, precision=precision);
+        }
 
-
+        let (sizes, number_of_faces) = self.get_number_of_faces_of_size();
+        println!("");
+        for idx in 0..sizes.len() {
+            colour::blue_ln!("Vertices in face = {}, number of faces = {}", sizes[idx],number_of_faces[idx]);
         }
     }
 
@@ -1774,7 +1812,7 @@ impl Faces {
 
     }
 
-    fn full_remove( & self, faces_to_remove: & Vec<&usize>) -> Faces {
+    fn full_remove( & self, faces_to_remove: &[&usize]) -> Faces {
 
         // faces_to_remove must already be sorted in reverse order
         // otherwise non-sensical results will occur
@@ -1847,16 +1885,13 @@ impl Faces {
                     } 
                 }
             }
-            if max_d > 0.1 {
-                if outer_faces.insert(max_index){
-                    colour::green_ln!("Adding outer face with index {}",max_index);
-                }
-            
+            if max_d > 0.1 && outer_faces.insert(max_index) {
+                colour::green_ln!("Adding outer face with index {}",max_index);
             }
             
         }
-        let mut vec_outer_faces: Vec<usize> = outer_faces.iter().map(|&x| x).collect();
-        vec_outer_faces.sort();
+        let mut vec_outer_faces: Vec<usize> = outer_faces.iter().copied().collect();
+        vec_outer_faces.sort_unstable();
         colour::blue_ln!("{:?}", vec_outer_faces);
 
         let all_faces:HashSet<usize> = (0..self.size).collect();
@@ -1901,7 +1936,7 @@ struct UnitNorms {
 impl UnitNorms {
 
 
-    fn new(edge_dots_and_unit_norms: & Vec<Vec<f64>>, coordinates: &CoordinateVector, num_camera_angles: usize) -> UnitNorms{
+    fn new(edge_dots_and_unit_norms: &[Vec<f64>], coordinates: &CoordinateVector, num_camera_angles: usize) -> UnitNorms{
 
         let mut vertices: Vec<Vec<usize>> = Vec::new();
         let mut unit_norms: CoordinateVector = CoordinateVector::new_from_empty();
@@ -1913,8 +1948,8 @@ impl UnitNorms {
         for dot_and_norm in edge_dots_and_unit_norms.iter(){
 
             let mut these_vertices : Vec<usize> = Vec::new();
-            for idx1 in 0..3 {
-                these_vertices.push(dot_and_norm[idx1] as usize);
+            for &dni in dot_and_norm.iter().take(3) {
+                these_vertices.push(dni as usize);
             }
             vertices.push(these_vertices);
             unit_dots.push(dot_and_norm[3]);
@@ -2004,13 +2039,13 @@ impl UnitNorms {
                 }
             }
         }
-        indices_to_remove.sort();
+        indices_to_remove.sort_unstable();
         indices_to_remove.reverse();
 
         for idx in indices_to_remove {
             result.remove(idx);
         }
-        let idx = result.size;
+
         result
     }
 
@@ -2034,14 +2069,12 @@ impl UnitNorms {
 
                 if idx1 < un.size - 1 {
                     for (idx2, norm2)  in un.data[idx1 + 1..un.size].iter().enumerate(){
-                        if face_indices[idx2 + idx1 + 1] < 0 {
-                            if norm1.equal_or_inverted(norm2) {
-                                // colour::magenta!("**Face index = {}, idx1 = {}, idx2 + idx1 + 1 = {}, norm1 = ", face_index, idx1, idx2 + idx1 + 1);
-                                // norm1.print('\n', 6);
-                                // colour::magenta!("**Matching to norm2 = ");
-                                // norm2.print('\n',6);
-                                face_indices[idx2 + idx1 + 1] = face_index as i32;
-                            }
+                        if face_indices[idx2 + idx1 + 1] < 0 && norm1.equal_or_inverted(norm2) {
+                            // colour::magenta!("**Face index = {}, idx1 = {}, idx2 + idx1 + 1 = {}, norm1 = ", face_index, idx1, idx2 + idx1 + 1);
+                            // norm1.print('\n', 6);
+                            // colour::magenta!("**Matching to norm2 = ");
+                            // norm2.print('\n',6);
+                            face_indices[idx2 + idx1 + 1] = face_index as i32;
                         }
                     }
                 }
@@ -2055,7 +2088,7 @@ impl UnitNorms {
 
 
         // return face_indices.iter().map(|&x| x as usize).collect();
-        return face_indices; //, unique_face_indices);
+        face_indices //, unique_face_indices);
 
 
     }
@@ -2110,6 +2143,13 @@ impl UnitNorms {
     }
 
 }
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+enum InitialiseKey {
+    Random,
+    Fixed,
+    Symmetric,
+    GoldenSpiral,
+}
 
 
 fn main() {
@@ -2124,50 +2164,80 @@ fn main() {
 
     // Dodecahedron: d12 20 vertices, 12 faces
     // Icosahedron: d20 12 vertices, 20 faces
+
+    let mut initialise_map: HashMap<InitialiseKey, char> = HashMap:: new();
+    initialise_map.insert(InitialiseKey::Random,'r');
+    initialise_map.insert(InitialiseKey::Fixed,'f');
+    initialise_map.insert(InitialiseKey::Symmetric,'s');
+    initialise_map.insert(InitialiseKey::GoldenSpiral,'g');
+
     let args: Vec<String> = env::args().collect();
 
     if args.len() <= 1 {
         println!("One argument is needed to specify the number of vertices which must be larger or equal to 3.");
         exit(1);
     }
-    let number_of_vertices: usize = match args[1].parse() {
-        Ok(num) => { 
-            if num < 3 {
-                println!("The number of vertices must be larger than or equal to 3.");
-                exit(1);
-            } else {
-                num
-            }
-        },
-        Err(e) => {
-            println!("The first argument must be the number of vertices and must be larger than or equal to 3.");
-            exit(1)
+    let mut opt_number_of_vertices:Option<usize> = None;
+    let mut vertex_count_found = false;
+    let mut initialisation_method: InitialiseKey = InitialiseKey::Symmetric;
+
+
+    for arg in args.iter().take(args.len().min(3)).skip(1) {
+        colour::red_ln!("arg = {}",arg);
+        let mut this_arg_number =false;
+        match arg.parse::<usize>() {
+            Ok(value) => {
+                opt_number_of_vertices = Some(value);
+                vertex_count_found = true;
+                this_arg_number = true;
+            },
+            Err(_e) => (),
         }
-    };
-    
+        if !this_arg_number {
+            match arg.parse::<char>() {
+                Ok(value) => {
+                    for (&key, &v) in &initialise_map {
+                        if v==value{
+                            initialisation_method = key;
+                            colour::magenta_ln!("Found key, character='{} and key = {:?}",v,key);
+                        }
+                    }
+                },
+                Err(_e) => (),
+            }
+        }
+    }
+    let number_of_vertices = opt_number_of_vertices.unwrap();
+    if !vertex_count_found {
+        panic!("Please enter the number of vertices in one of the first two command line arguments.")
+    }
+    if vertex_count_found && number_of_vertices < 3 {
+        panic!("The number of vertices must be larger than or equal to 3, number_of_vertices={}.",number_of_vertices);
+    }
+    if number_of_vertices > 30 {
+        panic!("You don't really want to run this with so many vertices, best to limit to a max of 30, number_of_vertices={}.",number_of_vertices);
+    }
+    colour::green_ln!("The number of vertices is {}, the initialisation method is {:?}", number_of_vertices, initialisation_method);
 
     let now = Instant::now();
     const SCALE : f64 =  0.1;
     const STOP_POWER : i32 = 10;
     let stop = 15_f64.powi(-STOP_POWER);
     const PRECISION: usize = STOP_POWER as usize + 1; 
-    const USE_RANDOM_VERTICES : bool = false;
-    const USE_SYMMETRIC_VERTICES : bool = true;
+
     const CAMERA_ANGLES: usize = 1000;
-    let mut coordinates : CoordinateVector;
+    
     
 
 
     // let data = vec![x1,x2,x3,x4,x5,x6];
-    if USE_RANDOM_VERTICES {
-        coordinates = CoordinateVector::new_from_random_vertices(number_of_vertices);
-    } else {
-        if USE_SYMMETRIC_VERTICES {
-            coordinates = CoordinateVector::new_from_symmetric_fixed_sequence(number_of_vertices);
-        } else {
-            coordinates = CoordinateVector::new_from_fixed_sequence(number_of_vertices);
-            }
-        }
+    let mut coordinates = match initialisation_method {
+        InitialiseKey::Random => CoordinateVector::new_from_random_vertices(number_of_vertices),
+        InitialiseKey::Fixed => CoordinateVector::new_from_fixed_sequence(number_of_vertices),
+        InitialiseKey::Symmetric => CoordinateVector::new_from_symmetric_fixed_sequence(number_of_vertices),
+        InitialiseKey::GoldenSpiral => CoordinateVector::new_from_golden_spiral(number_of_vertices),
+    };
+    
     
     
     // let mut new_coordinates = CoordinateVector::new(data);
@@ -2231,7 +2301,7 @@ fn main() {
 
         if counter + 1 % NUMBER_OF_CYCLES_BETWEEN_PRINT == 0 {
             let print_sub_timer = now.elapsed().as_secs_f64();
-            print!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}\n",
+            println!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}",
                     max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
             print_timer += now.elapsed().as_secs_f64() - print_sub_timer;
         }
@@ -2242,7 +2312,7 @@ fn main() {
             println!("loop: counter = {} **************************",counter);
             coordinates.print(PRECISION);
             coordinate_differences.print(PRECISION);
-            print!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}\n",
+            println!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}",
                             max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
             println!("Elpased time including final output ={:0.3} ms", 1000.0 * now.elapsed().as_secs_f64());
             println!("Elpased time excluding final output ={:0.3} ms", 1000.0 * elapsed_time_excluding_output);
@@ -2268,7 +2338,7 @@ fn main() {
             println!("loop: counter = {} **************************",counter);
             coordinates.print(PRECISION);
             coordinate_differences.print(PRECISION);
-            print!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}\n",
+            println!("max_dx = {:.precision$}, new_max_dx = {:.precision$}, %diff = {:.precision$}",
                             max_dx, new_max_dx, 1. - new_max_dx/max_dx, precision = PRECISION+2);
             println!("Elpased time ={:0.3} ms", 1000.0 * now.elapsed().as_secs_f64());
             print_timer += now.elapsed().as_secs_f64() - print_sub_timer;
