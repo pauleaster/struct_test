@@ -1,4 +1,4 @@
-use colour::unnamed::Colour;
+
 use itertools::{Itertools, izip};
 
 // use core::num::dec2flt::float;
@@ -14,6 +14,7 @@ use std::process::exit as exit;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 
+use std::io;
 
 // use geo::{LineString, Polygon, prelude::Contains};
 
@@ -24,6 +25,7 @@ use std::iter::FromIterator;
 
 const MAX_NUM : f64 = 1e6;
 const MIN_NUM : f64 = 0.0;
+const EPS: f64 = 1e-10;
 
 // const GEO_SCALE: f64 = 10000.0;
 
@@ -363,7 +365,11 @@ impl Coordinate {
 
     fn make_unit_vector(&self) -> Coordinate{
 
+
         // mag = self.mag;
+        if float_equals(self.mag, 0.0, EPS) {
+            panic!("Tried to make a unit vector from a vector with a length of {} < {}",self.mag,EPS)
+        }
 
         self.mult(1.0 / self.mag)
     }
@@ -381,7 +387,7 @@ impl Coordinate {
 
     fn equal(&self, pt: &Coordinate) -> bool {
         
-        let eps = 1e-6_f64;
+        let eps = EPS;
 
         self.sub(pt).mag < eps
 
@@ -419,11 +425,24 @@ impl Coordinate {
 
     fn dot(&self, pt:&Coordinate) -> f64 {
 
-        self.x * pt.x + self.y * pt.y + self.z * pt.z
+        let dx = self.x * pt.x;
+        let dy = self.y * pt.y;
+        let dz = self.z * pt.z;
+
+        dx + dy + dz
+
     }
 
-    fn unit_dot(&self, pt: &Coordinate) -> f64{
-        self.dot(pt) / self.mag / pt.mag
+    fn unit_dot(&self, pt: &Coordinate) -> f64 {
+
+        
+        if float_equals(self.mag, 0.0, EPS) | float_equals(pt.mag, 0.0, EPS) {
+            panic!("Attempting to normalise a dot product with a zero length vector, self.mag={}, py.mag = {}",self.mag,pt.mag);
+        }
+        let selfmag = self.mag;
+        let ptmag = pt.mag;
+        self.dot(pt) / selfmag / ptmag
+
     }
 
     fn unit_cross(&self, pt: &Coordinate) -> Coordinate{
@@ -434,11 +453,11 @@ impl Coordinate {
         let mag = Coordinate::calc_mag(x,y,z);
         
         Coordinate{
-            x: x / mag,
-            y: y / mag,
-            z: z / mag,
-            mag: 1.0,
-        }
+            x,
+            y,
+            z,
+            mag,
+        }.make_unit_vector()
     }
 
     fn expand(self: &Coordinate) -> Vec<f64> {
@@ -500,7 +519,11 @@ impl Coordinate {
 
     fn is_parallel_to(&self, coordinate: & Coordinate) -> bool {
 
-        float_equals(self.dot(coordinate), self.mag * coordinate.mag, 1e-10)
+        
+
+        let x = self.dot(coordinate).abs();
+        let y = self.mag * coordinate.mag;
+        float_equals(x,y, EPS)
 
     }
 
@@ -706,6 +729,40 @@ impl CoordinateVector {
 
     }
 
+    fn new_from_all_coplanar(num_vertices: usize) -> CoordinateVector  {
+        
+        let mut data: Vec<Coordinate> = vec![];
+        for i in 0..num_vertices {
+            let mut theta = 0.0;
+            let mut phi = (i as f64) * 2.0 * PI / (num_vertices as f64);
+            if phi > PI {
+                phi = 2.0 * PI - phi;
+                theta = PI;
+            }
+            data.push(Coordinate::new_from_spherical_coordinates(1.0, theta, phi));
+        }
+        if data.len() != num_vertices {
+            panic!("CoordinateVector::new_from_all_coplanar() returning {} elements instead of {} as required.",data.len(), num_vertices);
+        }
+        CoordinateVector::new(data)
+        
+    }
+
+    fn new_from_golden_spiral_coplanar( num_vertices: usize) -> CoordinateVector {
+
+        let result = CoordinateVector::new_from_golden_spiral(num_vertices);
+        result.project_onto_xz()
+    
+    }
+
+    fn project_onto_xz(& self) -> CoordinateVector{
+        
+        let mut result = CoordinateVector::new_from_empty();
+        for i in 0..self.size {
+            result.push(&self.indexed_coordinate(i).project_onto_xz());
+        }
+        result
+    }
 
 
     fn clone(&self) -> CoordinateVector {
@@ -720,6 +777,22 @@ impl CoordinateVector {
 
     fn copy(&self) -> CoordinateVector {
         self.clone()
+    }
+
+    fn clamp_to( & self, max_mag: f64) -> CoordinateVector {
+
+        let mut result = CoordinateVector::new_from_empty();
+
+        for i in 0..self.size {
+            let coord = self.indexed_coordinate(i);
+            if coord.mag <= max_mag {
+                result.push(&coord);
+            } else {
+                result.push(&coord.mult(max_mag/coord.mag));
+            }
+
+        }
+        result
     }
 
     
@@ -740,7 +813,7 @@ impl CoordinateVector {
 
     }
 
-    fn sum(& self) -> Coordinate {
+    fn sum_to_coordinate(& self) -> Coordinate {
         
         let mut sum = Coordinate::zero();
         for coordinate in &self.data {
@@ -758,7 +831,7 @@ impl CoordinateVector {
             coordinate.print('\n', precision);
         }
         colour::yellow_ln!("Sum = ");
-        self.sum().print('\n', precision);
+        self.sum_to_coordinate().print('\n', precision);
     }
 
     fn max_mag(&self) -> f64 {
@@ -766,14 +839,29 @@ impl CoordinateVector {
         
     }
 
+    fn sub( & self, other: & CoordinateVector) -> CoordinateVector {
+
+        let mut result = CoordinateVector::new_from_empty();
+
+        for i in 0..self.size {
+            result.push(&self.indexed_coordinate(i).sub(& other.indexed_coordinate(i)));
+        }
+        result
+    }
+
     fn reposition (&self, differences: &CoordinateDifferences, scale:f64) -> (CoordinateVector, f64) {
 
+        // self.print(3);
         let result = self; //.clone();
         let mut dx = self.zero();
         let mut dx_parallel = self.zero();
         let mut true_dx = self.zero();
         let mut new_result = self.zero();
+        // let (min_idx1, min_idx2, min_delta) = differences.min_delta();
         for (idx1, idx2, delta_vector) in izip!(&differences.first_index,&differences.second_index,&differences.data){
+            // if delta_vector.mag < 0.1 {
+            //     delta_vector.mult(0.1/delta_vector.mag);
+            // }
             if *idx1 == 0 {
                 dx.data[*idx1]= Coordinate::zero();
             } else if *idx1 == 1 {
@@ -800,6 +888,7 @@ impl CoordinateVector {
                 dx.data[*idx2]  = dx.data[*idx2].add(&delta_vector.mult(-1.0 * delta_vector.mag.powi(-3) * scale)); // du_hat/|u|^2
             }
         }
+        // dx = dx.clamp_to(0.1); // limit the vectors in dx to a max magnitude of 0.1
         for (idx, dx_val) in dx.data.iter().enumerate() {
             dx_parallel.data[idx] = dx_val.sub(&result.data[idx].mult(dx_val.dot(&result.data[idx])));
             if idx == 1 {
@@ -822,7 +911,17 @@ impl CoordinateVector {
             new_result.data[idx] = result.data[idx].add(&dx_parallel.data[idx]).make_unit_vector();
             true_dx.data[idx] = new_result.data[idx].sub(&result.data[idx]);
         }
-        (new_result, true_dx.max_mag())
+        // new_result.print(3);
+
+        // let dot_change = new_result.dot(&new_result.sub(self));
+        // colour::yellow_ln!("Dot change = ");
+        // for (i, &dot_val) in dot_change.iter().enumerate() {
+        //     colour::green!("{}: {:0.3}, ",i,dot_val);
+        // }
+        let true_dx_max = true_dx.max_mag();
+        let dx_max = dx.max_mag();
+        // colour::green_ln!("Δmin({},{})={:0.3}, dx_max={:0.3}, true_dx_max={:0.3}",min_idx1, min_idx2,min_delta, dx_max,true_dx_max);
+        (new_result, true_dx_max)
     }
 
     fn indexed_coordinate(&self, index: usize) -> Coordinate{
@@ -865,7 +964,7 @@ impl CoordinateVector {
 
     fn calc_centroid( & self) -> Coordinate {
 
-        self.sum().mult(1.0 / self.size as f64)
+        self.sum_to_coordinate().mult(1.0 / self.size as f64)
     }
 
     
@@ -1071,6 +1170,16 @@ impl CoordinateVector {
         }
         false
     }
+
+    fn dot( & self, other: & CoordinateVector) -> Vec<f64> {
+
+        let mut result: Vec<f64> = Vec::new();
+
+        for i in 0..self.size {
+            result.push(self.indexed_coordinate(i).dot(& other.indexed_coordinate(i)));
+        }
+        result
+    }
     
 }
 
@@ -1178,8 +1287,7 @@ impl CoordinateDifferences{
     fn print(&self, precision: usize) {
 
         let field:usize = precision + 4; 
-        const EPS: f64 = 1e-6;
-        let mut angle_filter_count: usize = 0;
+
 
         colour::yellow_ln!("CoordinateDifferences::print()");
         colour::yellow_ln!("Length = {:3}",self.size);
@@ -1304,6 +1412,20 @@ impl CoordinateDifferences{
             }
         } 
         CoordinateDifferences::sort_edge_dots(&result)
+    }
+
+    fn min_delta(& self) -> (usize, usize, f64) {
+
+        let mut min_index: usize = 0;
+        let mut min_delta: f64 = 1000.0;
+        for (i, diff_val) in self.data.iter().enumerate() {
+            if diff_val.mag < min_delta {
+                min_index = i;
+                min_delta = diff_val.mag;
+            }
+        }
+
+        (self.first_index[min_index], self.second_index[min_index], min_delta)
     }
 
 }
@@ -1465,6 +1587,49 @@ impl Faces {
 
         let len= un.size;
         let mut sorted_unit_norms = un.copy();
+
+        if len == 0 && (un.coordinates.size > 0) { // all coordinates are coplanar 
+            let size = 1;
+
+            let face_indices = (0..size).collect(); // coordinates are in this face
+            let face_vertices: Vec<Vec<usize>> = vec![(0..un.coordinates.size).collect()];
+            let unique_face_indices = (0..size).collect();         
+
+
+            let mut norm:Coordinate = Coordinate::zero();
+
+            let centroids: CoordinateVector = Faces::calculate_centroids(& face_vertices, & un.coordinates, size);
+            let cent = centroids.indexed_coordinate(0); // get the centroid
+            let mut break_loop =false;
+            for i in 0..un.coordinates.size - 1 {
+                let c1 = un.coordinates.indexed_coordinate(i);
+                for j in i+1.. un.coordinates.size {
+                    let c2 = un.coordinates.indexed_coordinate(j);
+                    if !c1.is_parallel_to(&c2) {
+                        norm = c1.sub(&cent).unit_cross(&c2.sub(&cent));
+                        break_loop = true;
+                        break;
+                    }
+                }
+                if break_loop {
+                    break;
+                }
+            }
+            let unit_norms_copy = CoordinateVector::new(vec!(norm));
+        
+            
+            return Faces {
+                vertices : face_vertices,
+                unit_norms : unit_norms_copy,
+                face_indices,
+                unique_face_indices,
+                centroids,
+                coordinates: un.coordinates.copy(),
+                size,
+                num_camera_angles: un.num_camera_angles,
+            };
+
+        }
 
 
         
@@ -1659,16 +1824,27 @@ impl Faces {
                 self.unit_norms.data[idx].x, self.unit_norms.data[idx].y, self.unit_norms.data[idx].z,field=field, precision=precision);
             colour::red!(" centroids = ( {:field$.precision$}, {:field$.precision$}, {:field$.precision$})",
                 self.centroids.data[idx].x, self.centroids.data[idx].y, self.centroids.data[idx].z,field=field, precision=precision);
-            let u_centroid = self.centroids.data[idx].make_unit_vector();
-            let n_dot_c = self.unit_norms.data[idx].dot(& u_centroid);
-            colour::dark_cyan_ln!(" <unorm,ucentroid> = {:field$.precision$}",
-            n_dot_c,field=field, precision=precision);
+            let cent = &self.centroids.data[idx];
+            if cent.mag > EPS {
+                let u_centroid = cent.make_unit_vector();
+                let n_dot_c = self.unit_norms.data[idx].dot(& u_centroid);
+                colour::dark_cyan_ln!(" <unorm,ucentroid> = {:field$.precision$}",
+                n_dot_c,field=field, precision=precision);
+            } else {
+                colour::dark_cyan_ln!(" <unorm,ucentroid> = {:field$.precision$}",
+                0.0,field=field, precision=precision);
+                
+            }
         }
 
         let (sizes, number_of_faces) = self.get_number_of_faces_of_size();
-        println!("");
+        println!();
         for idx in 0..sizes.len() {
             colour::blue_ln!("Vertices in face = {}, number of faces = {}", sizes[idx],number_of_faces[idx]);
+        }
+        if self.size == 1 {
+            colour::green_ln!("Exiting with single coplanar face.");
+            exit(1);
         }
     }
 
@@ -2149,6 +2325,8 @@ enum InitialiseKey {
     Fixed,
     Symmetric,
     GoldenSpiral,
+    Test,
+    CoplanarGoldenSpiral,
 }
 
 
@@ -2170,6 +2348,10 @@ fn main() {
     initialise_map.insert(InitialiseKey::Fixed,'f');
     initialise_map.insert(InitialiseKey::Symmetric,'s');
     initialise_map.insert(InitialiseKey::GoldenSpiral,'g');
+    initialise_map.insert(InitialiseKey::Test,'t');
+    initialise_map.insert(InitialiseKey::CoplanarGoldenSpiral,'c');
+
+    
 
     let args: Vec<String> = env::args().collect();
 
@@ -2220,7 +2402,7 @@ fn main() {
     colour::green_ln!("The number of vertices is {}, the initialisation method is {:?}", number_of_vertices, initialisation_method);
 
     let now = Instant::now();
-    const SCALE : f64 =  0.1;
+    const SCALE : f64 =  0.001;
     const STOP_POWER : i32 = 10;
     let stop = 15_f64.powi(-STOP_POWER);
     const PRECISION: usize = STOP_POWER as usize + 1; 
@@ -2236,6 +2418,8 @@ fn main() {
         InitialiseKey::Fixed => CoordinateVector::new_from_fixed_sequence(number_of_vertices),
         InitialiseKey::Symmetric => CoordinateVector::new_from_symmetric_fixed_sequence(number_of_vertices),
         InitialiseKey::GoldenSpiral => CoordinateVector::new_from_golden_spiral(number_of_vertices),
+        InitialiseKey::Test => CoordinateVector::new_from_all_coplanar(number_of_vertices),
+        InitialiseKey::CoplanarGoldenSpiral => CoordinateVector::new_from_golden_spiral_coplanar(number_of_vertices),
     };
     
     
