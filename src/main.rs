@@ -133,6 +133,28 @@ fn vec_copy_f64( data: &[f64]) -> Vec<f64> {
     data.iter().copied().collect()
 }
 
+#[test]
+fn test_uniquely_sorted_ok() {
+    let v:  [usize;4] = [3,4,1,2];
+    let vs: [usize;4] = [1,2,3,4];
+    assert_eq!(vs[..],uniquely_sorted(&v)[..]);
+}
+
+#[test]
+fn test_uniquely_sorted_not_sorted() {
+    let v:  [usize;4] = [3,4,1,2];
+    let vs: [usize;4] = [1,2,4,3];
+    assert_ne!(vs[..],uniquely_sorted(&v)[..]);
+}
+
+#[test]
+fn test_uniquely_sorted_unique() {
+    let v:  [usize;9] = [3,4,1,2,4,4,3,3,2];
+    let vs: [usize;4] = [1,2,3,4];
+    assert_eq!(vs[..],uniquely_sorted(&v)[..]);
+}
+
+
 fn uniquely_sorted( vector: &[usize]) -> Vec<usize>{
     HashSet::<&usize>::from_iter(vector)
     .into_iter()
