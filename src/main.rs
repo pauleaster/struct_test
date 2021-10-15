@@ -1,5 +1,6 @@
 
 use itertools::{Itertools, izip};
+use Iterator;
 
 // use core::num::dec2flt::float;
 use std::time::Instant;
@@ -42,12 +43,23 @@ static mut GLOB_NEW_COORDINATE_DIFFERENCES_LOOP_ONLY: f64 = 0.0;
 static mut GLOB_NEW_COORDINATE_DIFFERENCES_MIN_MAX_ONLY: f64 = 0.0;
 // static mut GLOB_NEW_COORDINATE_DIFFERENCES_EDGE_DOTS_ONLY: f64 = 0.0;
 
+#[test]
+fn test_float_equals() {
+    assert!(float_equals(1.0_f64, 1.0_f64-1e-8_f64,1.001e-8_f64));
+    assert!(float_equals(1.0_f64, 1.0_f64+1e-8_f64,1.001e-8_f64));
+}
 
 fn float_equals(x: f64, y: f64, eps: f64) -> bool{
     
     (x-y).abs() < eps.abs()
 }
 
+
+#[test]
+fn test_vec_copy_usize() {
+    let data_1: [usize;4] = [3,4,1,2];
+    assert_eq!(data_1[..],vec_copy_usize(&data_1)[..]);
+}
 fn vec_copy_usize( data: &[usize]) -> Vec<usize> {
 
     data.iter().copied().collect()
@@ -67,6 +79,36 @@ fn vec_usize_print( data: &[usize]) {
     colour::dark_red!(")");
 }
 
+#[test]
+fn test_vec_2d_equal(){
+    let data_1: Vec<Vec<usize>> = vec![vec![3,4,1,2],vec![3,4,1,2],vec![3,4,1,2]];
+    let data_2: Vec<Vec<usize>> = vec![vec![3,4,1,2],vec![3,4,1,2],vec![3,4,1,2]];
+    assert!(vec_2d_equal(&data_1,&data_2));
+}
+
+fn vec_2d_equal(v1:&[Vec<usize>], v2:&[Vec<usize>])-> bool{
+
+    if v1.len() != v2.len() {
+        return false;
+    }
+    for (v1,v2) in Iterator::zip(v1.iter(),v2.iter()){
+        if v1.len() != v2.len() {
+            return false
+        }
+        if v1 != v2 {
+            return false
+        }
+    }
+    true
+}
+
+#[test]
+fn test_vec_2d_copy_usize(){
+    let data_1: Vec<Vec<usize>> = vec![vec![3,4,1,2],vec![3,4,1,2],vec![3,4,1,2]];
+    assert!(vec_2d_equal(&data_1, &vec_2d_copy_usize(&data_1)));
+}
+
+
 fn vec_2d_copy_usize( data: &[Vec<usize>]) -> Vec<Vec<usize>> {
 
     let mut result: Vec<Vec<usize>> = Vec::new();
@@ -78,6 +120,12 @@ fn vec_2d_copy_usize( data: &[Vec<usize>]) -> Vec<Vec<usize>> {
 
     result
 
+}
+
+#[test]
+fn test_vec_copy_f64() {
+    let data_1: [f64;4] = [3.,4.,1.,2.];
+    assert_eq!(data_1[..],vec_copy_f64(&data_1));
 }
 
 fn vec_copy_f64( data: &[f64]) -> Vec<f64> {
