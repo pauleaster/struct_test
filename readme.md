@@ -1,4 +1,5 @@
 [![Build Status](https://app.travis-ci.com/pauleaster/vertex_finder.svg?branch=main)](https://app.travis-ci.com/pauleaster/vertex_finder)
+[![Github-Rust](https://github.com/pauleaster/vertex_finder/actions/workflows/rust.yml/badge.svg)](https://github.com/pauleaster/vertex_finder/actions/workflows/rust.yml)
 
 # Vertex Finder
 ## Description
