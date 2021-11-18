@@ -8,3 +8,4 @@ This code was written in rust as an aid to learning the language. The code place
 + This code has not had a full testing implemented, most testing has been performed with printing and commenting.
 + Note that because of the performance of the Rust compiler, the amount of debugging needed for this code was surprising low! In many cases, if it compiles it will run correctly! Any logical bugs were quite easy to isolate and fix using the debugger in VScode.
 + Another surprising thing that I found about writing Rust code was that it was still relatively easy to prototype the code and build incrementally. I did not expect this to be the case!
++ Added this line to the readme to test whether Travis-CI is working.
