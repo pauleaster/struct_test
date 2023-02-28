@@ -167,7 +167,7 @@ struct SphericalAngles {
     theta : f64,
     phi : f64,
     num_points: usize,
-    index: i32,
+    index: Option<i32>,
 }
 
 impl SphericalAngles {
@@ -199,7 +199,7 @@ impl GoldenSpiral {
                 theta: 0.0,
                 phi : 0.0,
                 num_points,
-                index: -1,
+                index: None,
             },
 
         }
@@ -212,18 +212,22 @@ impl Iterator for GoldenSpiral {
 
     fn next( &mut self) -> Option<Self::Item> {
 
-        if self.curr.index < (self.curr.num_points - 1) as i32{
-            self.curr.index += 1;
-            self.curr.theta = PI * (1.0 + 5.0_f64.sqrt() * self.curr.index as f64 );
-            self.curr.phi = (1.0 - 2.0 * self.curr.index as f64 / self.curr.num_points as f64).acos();
+        if let Some(idx) = self.curr.index {
+            // index initialised
+            if idx < (self.curr.num_points - 1) as i32{
+                self.curr.index = Some(idx + 1);
+                self.curr.theta = PI * (1.0 + 5.0_f64.sqrt() * (idx + 1) as f64 );
+                self.curr.phi = (1.0 - 2.0 * (idx + 1) as f64 / self.curr.num_points as f64).acos();
+                return Some(self.curr.copy());
+            }
+        } else { // index not initialised
+            self.curr.index =  Some(1);
+            self.curr.theta = PI * (1.0 + 5.0_f64.sqrt() * 1_f64 );
+            self.curr.phi = (1.0 - 2.0 * 1_f64 / self.curr.num_points as f64).acos();
             return Some(self.curr.copy());
         }
         None
-
-        
     }
-
-
 }
 
 pub type NonAndParallelVertices = (bool, usize, usize, Option<Vec<(usize,usize)>>, Option<Vec<(usize,usize)>>);
