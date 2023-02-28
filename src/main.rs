@@ -792,7 +792,7 @@ impl CoordinateVector {
 
             for sa in GoldenSpiral::new(num_vertices) {
                 let mut c = Coordinate::new_from_spherical_coordinates(1.0,sa.theta,sa.phi);
-                if sa.index == 1 {
+                if sa.index == Some(1) {
                     c = c.project_onto_xz().make_unit_vector();
                 }
                 cv.push(&c);
@@ -966,7 +966,7 @@ impl CoordinateVector {
         for (idx, dx_val) in dx.data.iter().enumerate() {
             dx_parallel.data[idx] = dx_val.sub(&result.data[idx].mult(dx_val.dot(&result.data[idx])));
             if idx == 1 {
-                if result.data[idx].y.abs() > 1e-3 {
+                if result.data[idx - 1].y.abs() > 1e-3 {
                     println!("1st vector is not on xz plane, v = ");
                     result.data[idx].print('\n', 3);
                     panic!();
@@ -2429,10 +2429,10 @@ fn main() {
 
     let args: Vec<String> = env::args().collect();
 
-    if args.len() <= 1 {
-        println!("One argument is needed to specify the number of vertices which must be larger or equal to 3.");
-        exit(1);
-    }
+    // if args.len() <= 1 {
+    //     println!("One argument is needed to specify the number of vertices which must be larger or equal to 3.");
+    //     exit(1);
+    // }
     let mut opt_number_of_vertices:Option<usize> = None;
     let mut vertex_count_found = false;
     let mut initialisation_method: InitialiseKey = InitialiseKey::Symmetric;
@@ -2463,6 +2463,11 @@ fn main() {
             }
         }
     }
+    opt_number_of_vertices = Some(6);
+    vertex_count_found = true;
+    initialisation_method = InitialiseKey::GoldenSpiral;
+    
+
     let number_of_vertices = opt_number_of_vertices.unwrap();
     if !vertex_count_found {
         panic!("Please enter the number of vertices in one of the first two command line arguments.")
